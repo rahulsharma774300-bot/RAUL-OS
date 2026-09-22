@@ -1,0 +1,103 @@
+name: Build Pink Metro Rush Chat APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pink-metro-rush-chat/**'
+      - '.github/workflows/pink-metro-rush-chat.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.5
+    env:
+      HOME: /root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Android build dependencies
+        run: |
+          set -e
+          apt-get update -qq
+          apt-get install -y -qq python3 fontconfig
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35"
+
+      - name: Fetch CC0 runner assets
+        run: |
+          set -e
+          mkdir -p pink-metro-rush-chat/assets/runner
+          BASE="https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/addons/kaykit_character_pack_adventures/Characters/gltf"
+          wget -q -O pink-metro-rush-chat/assets/runner/Rogue.glb "$BASE/Rogue.glb"
+          wget -q -O pink-metro-rush-chat/assets/runner/rogue_texture.png "$BASE/rogue_texture.png"
+          wget -q -O pink-metro-rush-chat/assets/runner/LICENSE.txt "https://raw.githubusercontent.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0/main/LICENSE.txt"
+          test -s pink-metro-rush-chat/assets/runner/Rogue.glb
+          test -s pink-metro-rush-chat/assets/runner/rogue_texture.png
+
+      - name: Fetch CC0 train and rail assets
+        run: |
+          set -e
+          mkdir -p pink-metro-rush-chat/assets/trains
+          BASE="https://raw.githubusercontent.com/binyoun-cberi/kidscade/main/assets/game/3d/rail/kenney-train-kit"
+          for F in \
+            train-electric-subway-a.glb \
+            train-electric-subway-b.glb \
+            train-electric-city-a.glb \
+            train-electric-city-b.glb \
+            train-electric-bullet-a.glb \
+            railroad-straight.glb
+          do
+            wget -q -O "pink-metro-rush-chat/assets/trains/$F" "$BASE/$F"
+          done
+          wget -q -O pink-metro-rush-chat/assets/trains/LICENSE.txt "https://raw.githubusercontent.com/defold/examples/master/material/unlit/assets/models/kenney_train-kit/License.txt"
+          find pink-metro-rush-chat/assets/trains -maxdepth 1 -type f -printf "%f %k KB\n"
+
+      - name: Fetch CC0 pink-city assets
+        run: |
+          set -e
+          mkdir -p pink-metro-rush-chat/assets/city/Textures
+          BASE="https://raw.githubusercontent.com/petroulacl/fps-buildings-env-kit/main/buildings/kenney-city-kit-suburban/Models/GLB%20format"
+          wget -q -O pink-metro-rush-chat/assets/city/building-a.glb "$BASE/building-type-a.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/building-b.glb "$BASE/building-type-b.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/building-c.glb "$BASE/building-type-c.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/building-d.glb "$BASE/building-type-d.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/building-e.glb "$BASE/building-type-e.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/building-f.glb "$BASE/building-type-f.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/Textures/colormap.png "$BASE/Textures/colormap.png"
+
+          ROAD="https://raw.githubusercontent.com/petroulacl/fps-buildings-env-kit/main/props/kenney-city-kit-roads/Models/GLB%20format"
+          wget -q -O pink-metro-rush-chat/assets/city/streetlight.glb "$ROAD/light-curved.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/barrier.glb "$ROAD/construction-barrier.glb"
+          wget -q -O pink-metro-rush-chat/assets/city/LICENSE.txt "https://raw.githubusercontent.com/petroulacl/fps-buildings-env-kit/main/buildings/kenney-city-kit-suburban/License.txt"
+          test -s pink-metro-rush-chat/assets/city/Textures/colormap.png
+
+      - name: Generate music and sound effects
+        run: |
+          set -e
+          python3 pink-metro-rush-chat/generate_audio.py
+          ls -lh pink-metro-rush-chat/generated
+
+      - name: Import and validate Godot project
+        run: |
+          set -e
+          godot --headless --path pink-metro-rush-chat --editor --quit
+
+      - name: Export Android APK
+        run: |
+          set -e
+          mkdir -p pink-metro-rush-chat/build
+          godot --headless --verbose --path pink-metro-rush-chat --export-debug "Android Debug" "$(pwd)/pink-metro-rush-chat/build/Pink-Metro-Rush.apk"
+          test -s pink-metro-rush-chat/build/Pink-Metro-Rush.apk
+          ls -lh pink-metro-rush-chat/build/Pink-Metro-Rush.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pink-metro-rush-chat-apk
+          path: pink-metro-rush-chat/build/Pink-Metro-Rush.apk
+          if-no-files-found: error
