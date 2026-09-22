@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RAUL.OS</string>
+    <string name="accessibility_desc">Lets RAUL.OS act on visible UI only after you enable Accessibility and issue a command. Password fields are not read or typed into.</string>
+</resources>
