@@ -12,6 +12,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: barichello/godot-ci:4.5
+    env:
+      XDG_DATA_HOME: /root/.local/share
+      XDG_CONFIG_HOME: /root/.config
     steps:
       - uses: actions/checkout@v4
       - name: Install original art pipeline and Android platform
@@ -39,7 +42,7 @@ jobs:
           ! grep -E 'SCRIPT ERROR|Parse Error|Assertion failed' rose-rail/build/*.log
       - name: Render gameplay screenshot
         run: |
-          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a godot --path rose-rail -- --capture
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a godot --audio-driver Dummy --path rose-rail -- --capture
           mv rose-rail/build-preview.png rose-rail/build/gameplay.png
       - name: Export and verify signed APK
         run: |
@@ -86,3 +89,4 @@ jobs:
         with:
           name: rose-rail-android-test
           path: android-evidence/
+
