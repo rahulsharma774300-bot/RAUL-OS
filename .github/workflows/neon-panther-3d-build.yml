@@ -1,0 +1,53 @@
+name: Build Neon Panther Rush 3D APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pink-panther-3d/**'
+      - '.github/workflows/neon-panther-3d-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pink-panther-3d
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Initialize Android SDK
+        continue-on-error: true
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35
+        run: |
+          SDKMANAGER="$(find /usr/local/lib/android/sdk -type f -name sdkmanager 2>/dev/null | head -1)"
+          echo "Using sdkmanager: $SDKMANAGER"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build 3D APK
+        run: gradle assembleDebug --stacktrace
+
+      - name: Upload 3D APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-panther-rush-3d-apk
+          path: pink-panther-3d/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
