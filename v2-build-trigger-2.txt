@@ -1,0 +1,1 @@
+Rerun RAUL.OS V2 build after sdkmanager path fix.
