@@ -44,7 +44,9 @@ public class JarvisService extends Service implements RecognitionListener, TextT
     private boolean listening = false;
     private boolean speaking = false;
     private boolean shuttingDown = false;
+    private boolean commandHandledThisSession = false;
     private long conversationUntil = 0L;
+    private String pendingSpeech = null;
 
     @Override
     public void onCreate() {
@@ -117,6 +119,10 @@ public class JarvisService extends Service implements RecognitionListener, TextT
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN");
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN");
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false);
+        recognizerIntent.putExtra("android.speech.extra.ENABLE_LANGUAGE_SWITCH", "balanced");
     }
 
     private void scheduleListen(long delayMs) {
@@ -136,8 +142,10 @@ public class JarvisService extends Service implements RecognitionListener, TextT
         }
 
         try {
+            commandHandledThisSession = false;
             listening = true;
             recognizer.startListening(recognizerIntent);
+            updateNotification("Listening for “Hey Raul”…");
         } catch (Exception e) {
             listening = false;
             scheduleListen(1200);
@@ -187,6 +195,18 @@ public class JarvisService extends Service implements RecognitionListener, TextT
 
         if (command.isBlank()) {
             speak("Haan, bolo.");
+            return;
+        }
+
+        String directLower = command.toLowerCase(Locale.ROOT).trim();
+        if (directLower.equals("are you there")
+                || directLower.equals("can you hear me")
+                || directLower.equals("sun rahe ho")
+                || directLower.equals("sun raha hai")
+                || directLower.equals("sunte ho")
+                || directLower.equals("hello")
+                || directLower.equals("hi")) {
+            speak("Yes, I'm here. Bolo, kya karna hai?");
             return;
         }
 
@@ -290,8 +310,8 @@ public class JarvisService extends Service implements RecognitionListener, TextT
             return;
         }
         if (!ttsReady) {
-            Toast.makeText(this, text, Toast.LENGTH_LONG).show();
-            scheduleListen(800);
+            pendingSpeech = text;
+            updateNotification("Speech engine is starting…");
             return;
         }
 
@@ -311,7 +331,13 @@ public class JarvisService extends Service implements RecognitionListener, TextT
         Bundle params = new Bundle();
         params.putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, android.media.AudioManager.STREAM_MUSIC);
         String id = UUID.randomUUID().toString();
-        tts.speak(clean, TextToSpeech.QUEUE_FLUSH, params, id);
+        int result = tts.speak(clean, TextToSpeech.QUEUE_FLUSH, params, id);
+        updateNotification("Speaking…");
+        if (result == TextToSpeech.ERROR) {
+            speaking = false;
+            pendingSpeech = clean;
+            scheduleListen(700);
+        }
     }
 
     private void speakThenStop(String text) {
@@ -380,6 +406,17 @@ public class JarvisService extends Service implements RecognitionListener, TextT
                     });
                 }
             });
+
+            String queued = pendingSpeech;
+            pendingSpeech = null;
+            if (queued != null && !queued.isBlank()) {
+                handler.post(() -> speak(queued));
+            } else if (getSharedPreferences(PREFS, MODE_PRIVATE)
+                    .getBoolean(KEY_ENABLED, false)) {
+                handler.postDelayed(() -> speak("RAUL is ready."), 250);
+            }
+        } else {
+            updateNotification("Text-to-speech failed to initialize");
         }
     }
 
@@ -396,24 +433,98 @@ public class JarvisService extends Service implements RecognitionListener, TextT
     @Override
     public void onError(int error) {
         listening = false;
-        if (!speaking && !shuttingDown) {
-            long delay = (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) ? 1200 : 500;
-            scheduleListen(delay);
+        if (speaking || shuttingDown) return;
+
+        updateNotification("Recognizer restarting… error " + error);
+
+        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                || error == SpeechRecognizer.ERROR_CLIENT
+                || error == SpeechRecognizer.ERROR_SERVER
+                || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) {
+            recreateRecognizer();
+            scheduleListen(900);
+        } else {
+            scheduleListen(450);
         }
     }
 
     @Override
     public void onResults(Bundle results) {
         listening = false;
+        if (commandHandledThisSession) return;
         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         processTranscript(matches == null || matches.isEmpty() ? null : matches.get(0));
     }
 
     @Override
-    public void onPartialResults(Bundle partialResults) {}
+    public void onPartialResults(Bundle partialResults) {
+        if (commandHandledThisSession || speaking || shuttingDown) return;
+        ArrayList<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        if (matches == null || matches.isEmpty()) return;
+
+        String best = matches.get(0);
+        if (best == null) return;
+        String lower = best.toLowerCase(Locale.ROOT).trim();
+
+        if (containsWakePhrase(lower) || System.currentTimeMillis() < conversationUntil) {
+            commandHandledThisSession = true;
+            listening = false;
+            processTranscript(best);
+        }
+    }
 
     @Override
     public void onEvent(int eventType, Bundle params) {}
+
+    private boolean containsWakePhrase(String lower) {
+        String[] wakes = {
+                "hey raul", "hey rahul", "hi raul", "hi rahul",
+                "raul", "rahul", "हे राउल", "हाय राउल", "राउल", "राहुल"
+        };
+        for (String wake : wakes) {
+            int idx = lower.indexOf(wake);
+            if (idx >= 0 && idx <= 6) return true;
+        }
+        return false;
+    }
+
+    private void recreateRecognizer() {
+        handler.post(() -> {
+            if (recognizer != null) {
+                try { recognizer.destroy(); } catch (Exception ignored) {}
+            }
+            recognizer = null;
+            listening = false;
+            setupRecognizer();
+        });
+    }
+
+    private void updateNotification(String text) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            Intent open = new Intent(this, MainActivity.class);
+            PendingIntent openPi = PendingIntent.getActivity(
+                    this, 1, open,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            Intent stop = new Intent(this, JarvisService.class).setAction(ACTION_STOP);
+            PendingIntent stopPi = PendingIntent.getService(
+                    this, 2, stop,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            Notification notification = new Notification.Builder(this, CHANNEL)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle("RAUL assistant")
+                    .setContentText(text)
+                    .setOngoing(true)
+                    .setContentIntent(openPi)
+                    .addAction(new Notification.Action.Builder(
+                            null, "Stop listening", stopPi).build())
+                    .build();
+            nm.notify(NOTIFICATION_ID, notification);
+        } catch (Exception ignored) {
+        }
+    }
 
     @Override
     public void onDestroy() {
