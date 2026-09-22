@@ -1,0 +1,66 @@
+name: Build Neon Panther Rush Pro
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'neon-panther-rush-pro/**'
+      - '.github/workflows/neon-panther-rush-pro.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.5
+    env:
+      HOME: /root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch CC0 3D assets
+        run: |
+          set -e
+          mkdir -p neon-panther-rush-pro/assets
+          wget -q -O neon-panther-rush-pro/assets/rae.gltf "https://raw.githubusercontent.com/danvanderboom/Aetherium/main/samples/unity/Aphelion/Assets/ThirdParty/Quaternius/Animated/reclaimer-rae.gltf"
+          wget -q -O neon-panther-rush-pro/assets/quaternius-license.txt "https://raw.githubusercontent.com/danvanderboom/Aetherium/main/samples/unity/Aphelion/Assets/ThirdParty/Quaternius/Animated/License.txt"
+
+          BASE="https://raw.githubusercontent.com/petroulacl/fps-buildings-env-kit/main/buildings/kenney-city-kit-suburban/Models/GLB%20format"
+          wget -q -O neon-panther-rush-pro/assets/building-a.glb "$BASE/building-type-a.glb"
+          wget -q -O neon-panther-rush-pro/assets/building-b.glb "$BASE/building-type-b.glb"
+          wget -q -O neon-panther-rush-pro/assets/building-c.glb "$BASE/building-type-c.glb"
+          wget -q -O neon-panther-rush-pro/assets/building-d.glb "$BASE/building-type-d.glb"
+          wget -q -O neon-panther-rush-pro/assets/building-e.glb "$BASE/building-type-e.glb"
+          wget -q -O neon-panther-rush-pro/assets/building-f.glb "$BASE/building-type-f.glb"
+
+          ROAD="https://raw.githubusercontent.com/petroulacl/fps-buildings-env-kit/main/props/kenney-city-kit-roads/Models/GLB%20format"
+          wget -q -O neon-panther-rush-pro/assets/barrier.glb "$ROAD/construction-barrier.glb"
+          wget -q -O neon-panther-rush-pro/assets/streetlight.glb "$ROAD/light-curved.glb"
+          wget -q -O neon-panther-rush-pro/assets/kenney-license.txt "https://raw.githubusercontent.com/petroulacl/fps-buildings-env-kit/main/buildings/kenney-city-kit-suburban/License.txt"
+
+          ls -lh neon-panther-rush-pro/assets
+
+      - name: Generate soundtrack and sound effects
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq python3
+          python3 neon-panther-rush-pro/generate_audio.py
+          ls -lh neon-panther-rush-pro/generated
+
+      - name: Import Godot project
+        run: |
+          godot --headless --path neon-panther-rush-pro --editor --quit
+
+      - name: Export Android APK
+        run: |
+          mkdir -p neon-panther-rush-pro/build
+          godot --headless --verbose --path neon-panther-rush-pro --export-debug "Android Debug" "$(pwd)/neon-panther-rush-pro/build/Neon-Panther-Rush-Pro.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-panther-rush-pro-apk
+          path: neon-panther-rush-pro/build/Neon-Panther-Rush-Pro.apk
+          if-no-files-found: error
