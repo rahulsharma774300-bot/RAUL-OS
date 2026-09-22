@@ -36,7 +36,16 @@ jobs:
       - name: Reconstruct Android project
         shell: bash
         run: |
-          cat project/part01.b64 project/part02.b64 project/part03.b64 project/part04.b64 > project.zip.b64
+          cat \
+            project/part01.b64 \
+            project/part02a.b64 \
+            project/part02b.b64 \
+            project/part02c1.b64 \
+            project/part02c2a.b64 \
+            project/part02c2b.b64 \
+            project/part02d.b64 \
+            project/part03.b64 \
+            project/part04.b64 > project.zip.b64
           base64 --decode project.zip.b64 > project.zip
           unzip -q project.zip
           test -f RAUL_OS/settings.gradle
