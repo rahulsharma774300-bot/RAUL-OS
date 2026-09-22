@@ -1,0 +1,1 @@
+Trigger build using Android 35 workflow and fixed Godot script.
