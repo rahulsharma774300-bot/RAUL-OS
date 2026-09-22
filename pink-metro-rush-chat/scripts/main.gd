@@ -501,7 +501,9 @@ func _recolor_runner(n: Node) -> void:
 
 func _add_panther_head() -> void:
 	var attach_parent: Node3D = player
-	var skeleton := _find_skeleton(visual) if visual else null
+	var skeleton: Skeleton3D = null
+	if visual:
+		skeleton = _find_skeleton(visual)
 	if skeleton:
 		for i in range(skeleton.get_bone_count()):
 			var bn := String(skeleton.get_bone_name(i)).to_lower()
