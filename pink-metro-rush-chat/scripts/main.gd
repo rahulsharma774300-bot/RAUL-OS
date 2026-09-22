@@ -1057,8 +1057,6 @@ func _hit() -> void:
 	if score > best_score:
 		best_score = score
 	_save_game()
-	else:
-		_save_game()
 	gameover_score.text = "SCORE  %d\nCOINS  %d\nBEST  %d" % [score, run_coins, best_score]
 	revive_button.visible = (not revive_used and total_coins >= 30)
 	gameover_panel.visible = true
