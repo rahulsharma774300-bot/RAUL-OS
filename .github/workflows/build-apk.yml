@@ -7,6 +7,8 @@ on:
     paths:
       - 'project/**'
       - '.github/workflows/build-apk.yml'
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
@@ -42,19 +44,6 @@ jobs:
 
       - name: Build debug APK
         run: gradle -p RAUL_OS :app:assembleDebug --stacktrace
-
-      - name: Save APK in repository
-        shell: bash
-        run: |
-          mkdir -p apk
-          cp RAUL_OS/app/build/outputs/apk/debug/app-debug.apk apk/RAUL-OS-debug.apk
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apk/RAUL-OS-debug.apk
-          if ! git diff --cached --quiet; then
-            git commit -m "Build RAUL.OS debug APK"
-            git push
-          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
