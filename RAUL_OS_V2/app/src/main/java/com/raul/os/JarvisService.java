@@ -36,6 +36,7 @@ public class JarvisService extends Service implements RecognitionListener, TextT
     private static final int NOTIFICATION_ID = 3001;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable listenRunnable = this::startListening;
     private SpeechRecognizer recognizer;
     private Intent recognizerIntent;
     private TextToSpeech tts;
@@ -119,8 +120,8 @@ public class JarvisService extends Service implements RecognitionListener, TextT
     }
 
     private void scheduleListen(long delayMs) {
-        handler.removeCallbacksAndMessages(null);
-        handler.postDelayed(this::startListening, delayMs);
+        handler.removeCallbacks(listenRunnable);
+        handler.postDelayed(listenRunnable, delayMs);
     }
 
     private void startListening() {
@@ -200,13 +201,15 @@ public class JarvisService extends Service implements RecognitionListener, TextT
             return;
         }
 
-        CommandRouter.executeAsync(this, normalized, result -> {
-            if (result != null && result.startsWith("Unknown command.")) {
-                AssistantBrain.ask(this, spokenCommand, this::speak);
-            } else {
-                speak(result);
-            }
-        });
+        CommandRouter.executeAsync(this, normalized, result ->
+                handler.post(() -> {
+                    if (result != null && result.startsWith("Unknown command.")) {
+                        AssistantBrain.ask(this, spokenCommand,
+                                answer -> handler.post(() -> speak(answer)));
+                    } else {
+                        speak(result);
+                    }
+                }));
     }
 
     private String normalizeNaturalCommand(String command) {
@@ -221,16 +224,64 @@ public class JarvisService extends Service implements RecognitionListener, TextT
         if (lower.startsWith("call ") && lower.endsWith(" using truecaller")) {
             return command.substring(0, command.length() - " using truecaller".length()).trim();
         }
+
+        String[] callEndings = {" ko call karo", " ko call kar do", " ko phone karo", " को कॉल करो", " को फोन करो"};
+        for (String ending : callEndings) {
+            if (lower.endsWith(ending) && command.length() > ending.length()) {
+                return "call " + command.substring(0, command.length() - ending.length()).trim();
+            }
+        }
+
+        if (lower.endsWith(" kholo") && command.length() > 6) {
+            return "open " + command.substring(0, command.length() - 6).trim();
+        }
+        if (lower.endsWith(" खोलो") && command.length() > 5) {
+            return "open " + command.substring(0, command.length() - 5).trim();
+        }
+
+        if (lower.contains("brightness")) {
+            Integer value = firstNumber(lower);
+            if (value != null) return "brightness " + value;
+        }
+        if (lower.contains("volume")) {
+            Integer value = firstNumber(lower);
+            if (value != null) return "volume " + value;
+        }
+
         if (lower.equals("what is the time")
                 || lower.equals("what's the time")
                 || lower.equals("tell me the time")
                 || lower.equals("tell me time")
                 || lower.equals("time kya hai")
+                || lower.equals("time batao")
                 || lower.equals("kitne baje hain")
-                || lower.equals("कितने बजे हैं")) {
+                || lower.equals("कितने बजे हैं")
+                || lower.equals("समय बताओ")) {
             return "time";
         }
+
+        if (lower.contains("battery") && (lower.contains("kitni") || lower.contains("level") || lower.contains("percent"))) {
+            return "battery";
+        }
+
+        if (lower.equals("torch on") || lower.equals("flashlight chalao") || lower.equals("torch chalao")) {
+            return "flashlight on";
+        }
+        if (lower.equals("torch off") || lower.equals("flashlight band karo") || lower.equals("torch band karo")) {
+            return "flashlight off";
+        }
+
         return command;
+    }
+
+    private Integer firstNumber(String text) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d{1,3})").matcher(text);
+        if (!matcher.find()) return null;
+        try {
+            return Math.max(0, Math.min(100, Integer.parseInt(matcher.group(1))));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void speak(String text) {
