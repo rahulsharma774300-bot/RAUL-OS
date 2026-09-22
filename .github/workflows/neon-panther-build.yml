@@ -14,9 +14,6 @@ jobs:
     defaults:
       run:
         working-directory: pink-panther-game
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
       - name: Checkout
@@ -28,9 +25,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Initialize Android SDK
+        id: android
+        continue-on-error: true
+        uses: android-actions/setup-android@v3
+
       - name: Install Android 35
         run: |
-          SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager
+          SDKMANAGER="$(find /usr/local/lib/android/sdk -type f -name sdkmanager 2>/dev/null | head -1)"
+          echo "Using sdkmanager: $SDKMANAGER"
+          test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
