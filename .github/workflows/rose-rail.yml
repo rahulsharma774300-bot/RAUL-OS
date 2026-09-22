@@ -17,12 +17,16 @@ jobs:
       - name: Install original art pipeline and Android platform
         run: |
           apt-get update -qq
-          apt-get install -y -qq blender python3 fontconfig xvfb libgl1-mesa-dri
+          apt-get install -y -qq blender python3 fontconfig xvfb libgl1-mesa-dri xz-utils
+          wget -q https://mirrors.ocf.berkeley.edu/blender/release/Blender4.5/blender-4.5.4-linux-x64.tar.xz -O /tmp/blender.tar.xz
+          tar -xf /tmp/blender.tar.xz -C /tmp
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager 'platform-tools' 'build-tools;35.0.0' 'platforms;android-35'
       - name: Build original meshes, skeletal animation and audio
         run: |
-          blender --background --python rose-rail/tools/create_art.py
+          /tmp/blender-4.5.4-linux-x64/blender --background --python-exit-code 1 --python rose-rail/tools/create_art.py
+          test -s rose-rail/assets/mika.glb
+          test -s rose-rail/assets/train.glb
           python3 rose-rail/generate_audio.py
       - name: Import and run gameplay regression
         shell: bash
@@ -41,8 +45,9 @@ jobs:
         run: |
           godot --headless --path rose-rail --export-debug 'Android Debug' "$(pwd)/rose-rail/build/Rose-Rail.apk"
           test -s rose-rail/build/Rose-Rail.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose rose-rail/build/Rose-Rail.apk > rose-rail/build/signature.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging rose-rail/build/Rose-Rail.apk > rose-rail/build/apk-info.txt
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk}}"
+          "$SDK_DIR/build-tools/35.0.0/apksigner" verify --verbose rose-rail/build/Rose-Rail.apk > rose-rail/build/signature.txt
+          "$SDK_DIR/build-tools/35.0.0/aapt" dump badging rose-rail/build/Rose-Rail.apk > rose-rail/build/apk-info.txt
       - uses: actions/upload-artifact@v4
         with:
           name: rose-rail-apk

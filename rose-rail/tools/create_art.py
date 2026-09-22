@@ -7,7 +7,8 @@ ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT=os.path.join(ROOT,'assets'); os.makedirs(OUT,exist_ok=True)
 random.seed(31)
 def mat(name,hex,metal=0,rough=.45):
-    rgb=tuple(int(hex[i:i+2],16)/255 for i in (0,2,4))
+    def linear(v):return v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4
+    rgb=tuple(linear(int(hex[i:i+2],16)/255) for i in (0,2,4))
     m=bpy.data.materials.new(name); m.diffuse_color=(*rgb,1); m.use_nodes=True
     bs=m.node_tree.nodes.get('Principled BSDF'); bs.inputs['Base Color'].default_value=(*rgb,1); bs.inputs['Metallic'].default_value=metal; bs.inputs['Roughness'].default_value=rough
     return m

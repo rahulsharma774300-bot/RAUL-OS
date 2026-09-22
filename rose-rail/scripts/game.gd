@@ -24,6 +24,7 @@ var slide := 0.0
 var speed := 13.0
 var distance := 0.0
 var run_coins := 0
+var banked_this_run := 0
 var score := 0
 var score_fraction := 0.0
 var best := 0
@@ -387,7 +388,7 @@ func _step(dt: float) -> void:
 		if h.get("hit",false) or absf(h.node.position.x-hero.position.x)>1.1:continue
 		var z: float=h.node.position.z
 		if absf(z)>h.length/2+.35:continue
-		var hit: bool = (h.kind=="train" and hero.position.y<ROOF-.28) or (h.kind=="low" and hero.position.y<1.05) or (h.kind=="high" and (slide<=0 or hero.position.y>.2))
+		var hit: bool = (h.kind=="train" and hero.position.y<ROOF-.28) or (h.kind=="low" and hero.position.y<1.05) or (h.kind=="high" and hero.position.y<3.2 and hero.position.y+(1.1 if slide>0 else 2.4)>1.55)
 		if hit and invincible<=0:
 			h["hit"]=true
 			if effects.shield>0:
@@ -503,6 +504,7 @@ func _start() -> void:
 	score=0
 	score_fraction=0
 	run_coins=0
+	banked_this_run=0
 	run_jumps=0
 	run_rolls=0
 	speed=13
@@ -529,12 +531,13 @@ func _crash() -> void:
 	_sound("hit")
 	_burst(hero.position+Vector3.UP,Color("ff6595"))
 	best=maxi(best,score)
-	_save_progress()
+	_bank()
 	_over()
 
 func _bank() -> void:
 	if settled:return
-	wallet+=run_coins
+	wallet+=run_coins-banked_this_run
+	banked_this_run=run_coins
 	settled=true
 	best=maxi(best,score)
 	_save_progress()
@@ -542,6 +545,7 @@ func _bank() -> void:
 func _revive() -> void:
 	if revived:return
 	revived=true
+	settled=false
 	invincible=3.5
 	mode="running"
 	overlay.visible=false
@@ -550,6 +554,7 @@ func _revive() -> void:
 func _pause() -> void:
 	if mode=="running":
 		mode="paused"
+		if animation:animation.pause()
 		_panel("TAKE A BREATHER","Your run is waiting.")
 		_button("CONTINUE",_resume)
 		_button("SOUND: "+("OFF" if muted else "ON"),_toggle_sound)
@@ -558,6 +563,7 @@ func _pause() -> void:
 
 func _resume() -> void:
 	mode="running"
+	if animation:animation.play()
 	overlay.visible=false
 
 func _notification(what: int) -> void:
@@ -569,8 +575,9 @@ func _check_mission() -> void:
 	var goals := [30.0,500.0,12.0,8.0]
 	var values := [float(run_coins),distance,float(run_jumps),float(run_rolls)]
 	var idx := mission_index%4
+	var cycle := 1+int(mission_index/4)
 	mission_progress=values[idx]
-	if mission_progress>=goals[idx]:
+	if mission_progress>=goals[idx]*cycle:
 		mission_index+=1
 		rank=mini(10,rank+1)
 		wallet+=50
@@ -628,10 +635,10 @@ func _setup_audio() -> void:
 	stream.loop_end=stream.data.size()/2
 	music.stream=stream
 	music.volume_db=-20
-	if not muted:music.play()
+	if not muted and not headless:music.play()
 
 func _sound(key: String) -> void:
-	if muted or sound_pool.is_empty():return
+	if muted or sound_pool.is_empty() or headless:return
 	var p := sound_pool[sound_index%8]
 	sound_index+=1
 	p.stream=sounds[key]
@@ -675,6 +682,12 @@ func _setup_ui() -> void:
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	var top := HBoxContainer.new()
+	var backing := Panel.new()
+	hud.add_child(backing)
+	backing.position=Vector2(12,32)
+	backing.size=Vector2(516,100)
+	backing.add_theme_stylebox_override("panel",_style("20182ee6"))
+	backing.mouse_filter=Control.MOUSE_FILTER_IGNORE
 	hud.add_child(top)
 	top.position=Vector2(20,42)
 	top.size=Vector2(500,80)
@@ -778,7 +791,8 @@ func _update_hud() -> void:
 		if effects[k]>0:active.append(k.to_upper()+" %ds"%int(ceil(effects[k])))
 	power_text.text="  ·  ".join(active)
 	var idx := mission_index%4
-	var names := ["Collect 30 coins","Run 500 metres","Jump 12 times","Roll 8 times"]
+	var cycle := 1+int(mission_index/4)
+	var names := ["Collect %d coins"%(30*cycle),"Run %d metres"%(500*cycle),"Jump %d times"%(12*cycle),"Roll %d times"%(8*cycle)]
 	mission_text.text="×%d  •  %s  (%d)"%[rank,names[idx],int(mission_progress)]
 
 func _capture() -> void:
