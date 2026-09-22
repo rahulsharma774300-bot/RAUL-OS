@@ -112,9 +112,9 @@ jobs:
           godot --headless --verbose --path pink-metro-rush-chat --export-debug "Android Debug" "$(pwd)/pink-metro-rush-chat/build/Pink-Metro-Rush.apk"
           test -s pink-metro-rush-chat/build/Pink-Metro-Rush.apk
           ls -lh pink-metro-rush-chat/build/Pink-Metro-Rush.apk
-          APKSIGNER="$(find /opt/android-sdk /usr/local/lib/android/sdk -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+          APKSIGNER="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
           if [ -n "$APKSIGNER" ]; then "$APKSIGNER" verify --verbose pink-metro-rush-chat/build/Pink-Metro-Rush.apk; fi
-          AAPT="$(find /opt/android-sdk /usr/local/lib/android/sdk -type f -name aapt 2>/dev/null | sort -V | tail -1)"
+          AAPT="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name aapt 2>/dev/null | sort -V | tail -1)"
           if [ -n "$AAPT" ]; then
             "$AAPT" dump badging pink-metro-rush-chat/build/Pink-Metro-Rush.apk | tee pink-metro-rush-chat/build/apk-badging.txt
             grep -q "launchable-activity" pink-metro-rush-chat/build/apk-badging.txt
