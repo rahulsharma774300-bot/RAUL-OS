@@ -254,6 +254,8 @@ func _pattern(z: float, serial: int) -> void:
 	_train(occupied,z,serial%4==3,serial%4!=3)
 	if serial%3==0:
 		_barrier((safe+2)%3,z+4,"low")
+		for i in range(7):
+			_pickup("coin",Vector3(LANES[(safe+2)%3],1+sin(float(i)/6*PI)*2,z+8-i*1.35))
 	elif serial%3==1:
 		_barrier((safe+2)%3,z,"high")
 	_coin_line(safe,z+6,7,0)
@@ -338,7 +340,9 @@ func _physics_process(dt: float) -> void:
 		intro -= dt
 		_animate("Run")
 		drone.position = Vector3(sin(elapsed*8)*.3,1.8,3.2)
-		if intro<=0:mode="running"
+		if intro<=0:
+			mode="running"
+			if OS.is_debug_build():print("ROSE_RAIL_STATE=running")
 	elif mode=="running":_step(dt)
 	elif mode=="menu":_animate("Idle")
 	if mode!="over":
@@ -554,10 +558,12 @@ func _revive() -> void:
 func _pause() -> void:
 	if mode=="running":
 		mode="paused"
+		if OS.is_debug_build():print("ROSE_RAIL_STATE=paused")
 		if animation:animation.pause()
 		_panel("TAKE A BREATHER","Your run is waiting.")
 		_button("CONTINUE",_resume)
 		_button("SOUND: "+("OFF" if muted else "ON"),_toggle_sound)
+		_button("DETAIL: "+("LIGHT" if reduced_fx else "HIGH"),_toggle_quality)
 		_button("END RUN",func(): _bank(); _menu())
 	elif mode=="paused":_resume()
 
@@ -594,11 +600,12 @@ func _load_progress() -> void:
 		rank=clampi(int(data.get("rank",1)),1,10)
 		mission_index=maxi(0,int(data.get("mission",0)))
 		muted=bool(data.get("muted",false))
+		reduced_fx=bool(data.get("reduced_fx",false))
 
 func _save_progress() -> void:
 	if "--smoke" in OS.get_cmdline_user_args():return
 	var f := FileAccess.open(SAVE,FileAccess.WRITE)
-	if f:f.store_string(JSON.stringify({"best":best,"coins":wallet,"rank":rank,"mission":mission_index,"muted":muted}))
+	if f:f.store_string(JSON.stringify({"best":best,"coins":wallet,"rank":rank,"mission":mission_index,"muted":muted,"reduced_fx":reduced_fx}))
 
 func _burst(pos: Vector3,color: Color) -> void:
 	if reduced_fx or headless:return
@@ -651,6 +658,14 @@ func _toggle_sound() -> void:
 	_save_progress()
 	if mode=="paused":mode="running";_pause()
 	else:_menu()
+
+func _toggle_quality() -> void:
+	reduced_fx=not reduced_fx
+	for child in get_children():
+		if child is DirectionalLight3D:child.shadow_enabled=not reduced_fx
+	_save_progress()
+	mode="running"
+	_pause()
 
 func _style(bg: String,border: String="") -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
@@ -796,6 +811,14 @@ func _update_hud() -> void:
 	mission_text.text="×%d  •  %s  (%d)"%[rank,names[idx],int(mission_progress)]
 
 func _capture() -> void:
+	if "--menu" in OS.get_cmdline_user_args():
+		set_physics_process(false)
+		for i in range(120):_update_camera(1.0/60)
+		await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("res://menu-preview.png")
+		get_tree().quit()
+		return
 	_start()
 	mode="running"
 	set_physics_process(false)
@@ -825,6 +848,21 @@ func _run_smoke() -> void:
 	assert(effects.magnet==12)
 	_collect("coin")
 	assert(run_coins==1)
+	# Verify shield absorbs one collision, then the same geometry is fatal unprotected.
+	_start()
+	mode="running"
+	_barrier(1,0,"low")
+	effects.shield=12
+	_step(1.0/60)
+	assert(mode=="running" and effects.shield==0 and invincible>0)
+	_start()
+	mode="running"
+	_barrier(1,0,"low")
+	_step(1.0/60)
+	assert(mode=="over")
+	var saved_wallet := wallet
+	_bank()
+	assert(wallet==saved_wallet,"Banking must be idempotent")
 	# Approach the first ramp in lane 0 without jumping, then verify roof support.
 	_start()
 	mode="running"

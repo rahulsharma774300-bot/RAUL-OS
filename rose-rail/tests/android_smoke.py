@@ -12,7 +12,7 @@ def swipe(x,y,xx,yy):adb('shell','input','swipe',int(w*x),int(h*y),int(w*xx),int
 def screen(name):(out/name).write_bytes(adb('exec-out','screencap','-p'))
 screen('01-menu.png')
 # The centered menu has its first button near 52% of viewport height.
-tap(.5,.52);time.sleep(2)
+tap(.5,.50);time.sleep(3)
 screen('02-running.png')
 swipe(.5,.65,.2,.65);swipe(.5,.65,.5,.35);time.sleep(.5)
 swipe(.5,.4,.5,.75);swipe(.5,.65,.8,.65)
@@ -21,5 +21,7 @@ pid=adb('shell','pidof','com.raul.roserail').decode().strip()
 assert pid,'Game process died after launch/input'
 logs=adb('logcat','-d').decode(errors='replace');(out/'logcat.txt').write_text(logs)
 assert not re.search(r'FATAL EXCEPTION|Fatal signal|SCRIPT ERROR|Parse Error',logs),'Android runtime error; inspect logcat'
+assert 'ROSE_RAIL_STATE=running' in logs,'Start button did not enter a run'
+assert 'ROSE_RAIL_STATE=paused' in logs,'Pause button did not pause the run'
 (out/'result.txt').write_text('APK installed and launched; input sequence completed; process alive; no fatal or GDScript errors.\n')
 print('ROSE_RAIL_ANDROID_OK')
