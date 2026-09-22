@@ -3,6 +3,8 @@ package com.raul.os;
 import android.Manifest;
 import android.app.Activity;
 import android.app.NotificationManager;
+import android.app.role.RoleManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -11,6 +13,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.service.voice.VoiceInteractionService;
+import android.text.InputType;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -25,6 +29,8 @@ import java.util.List;
 public class MainActivity extends Activity {
     private TextView status;
     private LinearLayout content;
+    private EditText apiKeyInput;
+    private EditText modelInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,143 +51,187 @@ public class MainActivity extends Activity {
 
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(18), dp(22), dp(18), dp(30));
+        content.setPadding(dp(18), dp(22), dp(18), dp(36));
         scroll.addView(content, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView title = text("RAUL.OS V2", 30, Color.rgb(78, 219, 255));
+        TextView title = text("RAUL.OS V3", 31, Color.rgb(78, 219, 255));
         content.addView(title);
 
         TextView subtitle = text(
-                "Phone control layer • voice • accessibility • notifications • macros • floating orb",
+                "Always-listening personal assistant • “Hey Raul” • Hindi + English • phone actions • AI brain",
                 15, Color.LTGRAY);
         subtitle.setPadding(0, dp(4), 0, dp(14));
         content.addView(subtitle);
 
-        TextView disclosure = text(
-                "Accessibility is powerful. RAUL.OS does not passively log your screen, skips password fields, and only performs UI actions after you run a command. Secure/DRM/banking screens may block automation or screenshots.",
+        TextView note = text(
+                "Set RAUL.OS as your default assistant, grant the permissions below, then tap Activate once. " +
+                "After that, say things like “Hey Raul, call Mom”, “Hey Raul, tell me time”, or ask a normal question. " +
+                "Android may still require one manual activation after installation or if the phone kills the microphone service.",
                 14, Color.rgb(210, 220, 228));
-        disclosure.setPadding(0, 0, 0, dp(16));
-        content.addView(disclosure);
+        note.setPadding(0, 0, 0, dp(16));
+        content.addView(note);
 
-        status = text("Checking permissions…", 15, Color.WHITE);
+        status = text("Checking setup…", 15, Color.WHITE);
         status.setPadding(dp(12), dp(12), dp(12), dp(12));
         status.setBackgroundColor(Color.rgb(18, 31, 43));
         content.addView(status);
 
-        addSection("1. Core permissions");
+        addSection("1. Make RAUL your assistant");
+        addButton("Set RAUL.OS as default assistant", this::requestAssistantRole);
+        addButton("Grant Mic + Contacts + Phone + Camera", this::requestRuntimePermissions);
         addButton("Enable Accessibility control", () ->
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
-
         addButton("Enable Notification access", () ->
                 startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-
-        addButton("Enable floating overlay", () -> {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-        });
-
         addButton("Enable Modify system settings", () -> {
             Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
                     Uri.parse("package:" + getPackageName()));
             startActivity(intent);
         });
-
         addButton("Enable Do Not Disturb access", () ->
                 startActivity(new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)));
+        addButton("Battery optimization settings", () ->
+                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)));
 
-        addButton("Grant microphone / contacts / camera", this::requestRuntimePermissions);
+        addSection("2. Truecaller");
+        TextView truecallerHelp = text(
+                "For “Hey Raul, call Mom” to go through Truecaller reliably, set Truecaller as your default Phone app. " +
+                "RAUL.OS will try Truecaller directly first and fall back to the system default dialer.",
+                13, Color.rgb(180, 200, 212));
+        content.addView(truecallerHelp);
+        addButton("Open Default Apps → set Truecaller as Phone app", () ->
+                startActivity(new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)));
 
-        addSection("2. Assistant");
-        addButton("Start floating RAUL orb", this::startOrb);
-        addButton("Stop floating RAUL orb", () -> {
-            stopService(new Intent(this, OrbService.class));
-            Toast.makeText(this, "Floating orb stopped.", Toast.LENGTH_SHORT).show();
+        addSection("3. AI brain");
+        TextView brainHelp = text(
+                "Phone commands work locally. For normal questions and conversation, add your own OpenAI API key. " +
+                "The key is encrypted with Android Keystore and stays on this phone.",
+                13, Color.rgb(180, 200, 212));
+        content.addView(brainHelp);
+
+        apiKeyInput = input("OpenAI API key");
+        apiKeyInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        content.addView(apiKeyInput);
+
+        modelInput = input("Model");
+        modelInput.setSingleLine(true);
+        modelInput.setText(getSharedPreferences(JarvisService.PREFS, MODE_PRIVATE)
+                .getString("brain_model", "gpt-5.6-luna"));
+        content.addView(modelInput);
+
+        addButton("Save AI brain settings", () -> {
+            try {
+                String key = apiKeyInput.getText().toString().trim();
+                if (!key.isEmpty()) {
+                    SecureStore.saveApiKey(this, key);
+                    apiKeyInput.setText("");
+                }
+                String model = modelInput.getText().toString().trim();
+                if (model.isEmpty()) model = "gpt-5.6-luna";
+                getSharedPreferences(JarvisService.PREFS, MODE_PRIVATE)
+                        .edit().putString("brain_model", model).apply();
+                Toast.makeText(this, "AI brain settings saved.", Toast.LENGTH_LONG).show();
+                refreshStatus();
+            } catch (Exception e) {
+                Toast.makeText(this, "Could not secure the API key.", Toast.LENGTH_LONG).show();
+            }
         });
-        addButton("Speak a command", () ->
-                startActivity(new Intent(this, VoiceCommandActivity.class)));
 
-        addSection("3. Run a command");
-        EditText command = input("Example: open WhatsApp");
-        content.addView(command);
-        addButton("Run command", () -> {
-            String value = command.getText().toString().trim();
-            CommandRouter.executeAsync(this, value, result ->
-                    runOnUiThread(() -> {
-                        status.setText(result);
-                        Toast.makeText(this, result, Toast.LENGTH_LONG).show();
-                    }));
+        addButton("Clear conversation memory", () -> {
+            ConversationHistory.clear(this);
+            Toast.makeText(this, "Conversation memory cleared.", Toast.LENGTH_SHORT).show();
+        });
+
+        addSection("4. Always-listening Jarvis");
+        addButton("ACTIVATE “HEY RAUL”", this::activateJarvis);
+        addButton("Stop listening", () -> {
+            getSharedPreferences(JarvisService.PREFS, MODE_PRIVATE)
+                    .edit().putBoolean(JarvisService.KEY_ENABLED, false).apply();
+            Intent stop = new Intent(this, JarvisService.class).setAction(JarvisService.ACTION_STOP);
+            startService(stop);
+            Toast.makeText(this, "RAUL stopped listening.", Toast.LENGTH_SHORT).show();
+            refreshStatus();
         });
 
         TextView examples = text(
-                "Examples:\n" +
-                        "open Spotify\n" +
-                        "tap Search\n" +
-                        "type hello\n" +
-                        "read screen\n" +
-                        "scroll down\n" +
-                        "call Radhika\n" +
-                        "read notifications\n" +
-                        "brightness 40\n" +
-                        "volume 70\n" +
-                        "flashlight on\n" +
-                        "analyze screenshot\n" +
-                        "gaming mode",
+                "Try:\n" +
+                        "Hey Raul, call Mom\n" +
+                        "Hey Raul, tell me time\n" +
+                        "Hey Raul, battery kitni hai?\n" +
+                        "Hey Raul, open Spotify\n" +
+                        "Hey Raul, brightness 40\n" +
+                        "Hey Raul, read my notifications\n" +
+                        "Hey Raul, who invented the internet?\n" +
+                        "Hey Raul, aaj Chandigarh ka weather kaisa hai?\n\n" +
+                        "After RAUL replies, you have about 30 seconds to continue talking without repeating “Hey Raul”.",
                 14, Color.rgb(180, 200, 212));
-        examples.setPadding(0, dp(8), 0, dp(12));
+        examples.setPadding(0, dp(10), 0, dp(12));
         content.addView(examples);
 
-        addSection("4. Custom aliases and macros");
-        EditText alias = input("Alias phrase, e.g. message Radhika");
-        EditText macro = input("Commands, e.g. open WhatsApp; wait 2; tap Radhika; wait 1; type I'll call you soon");
-        content.addView(alias);
-        content.addView(macro);
-        addButton("Save alias / macro", () -> {
-            String phrase = alias.getText().toString().trim();
-            String mapped = macro.getText().toString().trim();
-            if (phrase.isEmpty() || mapped.isEmpty()) {
-                Toast.makeText(this, "Enter both an alias and commands.", Toast.LENGTH_SHORT).show();
+        addSection("5. Advanced phone control");
+        addButton("Enable floating orb (optional)", () -> {
+            if (!Settings.canDrawOverlays(this)) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
                 return;
             }
-            LocalMemory.putAlias(this, phrase, mapped);
-            Toast.makeText(this, "Saved alias: " + phrase, Toast.LENGTH_LONG).show();
+            startForegroundService(new Intent(this, OrbService.class));
         });
-
-        TextView macroHelp = text(
-                "Macros run left-to-right. Use semicolons between steps and “wait 2” when an app needs time to load. Example:\n" +
-                        "open Instagram; wait 2; tap Search; wait 1; type OpenAI",
-                13, Color.rgb(180, 200, 212));
-        macroHelp.setPadding(0, dp(6), 0, dp(12));
-        content.addView(macroHelp);
-
-        addSection("5. Local memory");
-        EditText memoryCommand = input("Example: remember parking is B2");
-        content.addView(memoryCommand);
-        addButton("Save / query memory command", () ->
-                CommandRouter.executeAsync(this, memoryCommand.getText().toString(),
-                        result -> runOnUiThread(() -> status.setText(result))));
-
-        addSection("6. Optional deeper-control layer");
         addButton("Check Shizuku readiness", () ->
                 status.setText(ShizukuBridge.status(this)));
 
-        TextView shizuku = text(
-                "This build detects Shizuku and keeps a privileged-action integration boundary ready, but it does not bypass Android security or silently gain root-level access.",
-                13, Color.rgb(180, 200, 212));
-        content.addView(shizuku);
-
         setContentView(scroll);
+    }
+
+    private void requestAssistantRole() {
+        RoleManager roleManager = (RoleManager) getSystemService(Context.ROLE_SERVICE);
+        String role = "android.app.role.ASSISTANT";
+        if (roleManager != null && roleManager.isRoleAvailable(role)) {
+            startActivityForResult(roleManager.createRequestRoleIntent(role), 202);
+        } else {
+            try {
+                startActivity(new Intent("android.settings.VOICE_INPUT_SETTINGS"));
+            } catch (Exception e) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS));
+            }
+        }
+    }
+
+    private void activateJarvis() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestRuntimePermissions();
+            Toast.makeText(this, "Grant Microphone permission, then tap Activate again.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        getSharedPreferences(JarvisService.PREFS, MODE_PRIVATE)
+                .edit().putBoolean(JarvisService.KEY_ENABLED, true).apply();
+
+        try {
+            Intent intent = new Intent(this, JarvisService.class).setAction(JarvisService.ACTION_START);
+            startForegroundService(intent);
+            Toast.makeText(this, "RAUL is listening. Say “Hey Raul”.", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    "Android blocked the microphone service. Make RAUL your default assistant, then try again.",
+                    Toast.LENGTH_LONG).show();
+        }
+        refreshStatus();
     }
 
     private void requestRuntimePermissions() {
         List<String> needed = new ArrayList<>();
         addIfMissing(needed, Manifest.permission.RECORD_AUDIO);
         addIfMissing(needed, Manifest.permission.READ_CONTACTS);
+        addIfMissing(needed, Manifest.permission.CALL_PHONE);
         addIfMissing(needed, Manifest.permission.CAMERA);
         if (Build.VERSION.SDK_INT >= 33) {
             addIfMissing(needed, Manifest.permission.POST_NOTIFICATIONS);
         }
+
         if (needed.isEmpty()) {
             Toast.makeText(this, "Runtime permissions are already granted.", Toast.LENGTH_SHORT).show();
         } else {
@@ -195,40 +245,41 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void startOrb() {
-        if (!Settings.canDrawOverlays(this)) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName()));
-            startActivity(intent);
-            Toast.makeText(this, "Enable the overlay permission, then tap Start again.", Toast.LENGTH_LONG).show();
-            return;
-        }
-        Intent intent = new Intent(this, OrbService.class);
-        startForegroundService(intent);
-        Toast.makeText(this, "Floating orb started.", Toast.LENGTH_SHORT).show();
-    }
-
     private void refreshStatus() {
         if (status == null) return;
+
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        boolean assistant = VoiceInteractionService.isActiveService(
+                this, new ComponentName(this, RaulVoiceInteractionService.class));
+        boolean jarvis = getSharedPreferences(JarvisService.PREFS, MODE_PRIVATE)
+                .getBoolean(JarvisService.KEY_ENABLED, false);
+
         String value =
-                "Accessibility: " + onOff(isAccessibilityEnabled()) +
+                "Default assistant: " + onOff(assistant) +
+                "\nHey Raul enabled: " + onOff(jarvis) +
+                "\nAI brain key: " + (SecureStore.hasApiKey(this) ? "CONFIGURED" : "NOT SET") +
+                "\nAccessibility: " + onOff(isAccessibilityEnabled()) +
                 "\nNotification access: " + onOff(isNotificationAccessEnabled()) +
-                "\nOverlay: " + onOff(Settings.canDrawOverlays(this)) +
+                "\nMic: " + onOff(has(Manifest.permission.RECORD_AUDIO)) +
+                "\nContacts: " + onOff(has(Manifest.permission.READ_CONTACTS)) +
+                "\nPhone calls: " + onOff(has(Manifest.permission.CALL_PHONE)) +
                 "\nModify settings: " + onOff(Settings.System.canWrite(this)) +
-                "\nDND access: " + onOff(nm.isNotificationPolicyAccessGranted()) +
-                "\nMic: " + onOff(checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) +
-                "\nContacts: " + onOff(checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) +
-                "\nCamera/flash: " + onOff(checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED);
+                "\nDND access: " + onOff(nm.isNotificationPolicyAccessGranted());
+
         status.setText(value);
+    }
+
+    private boolean has(String permission) {
+        return checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
     }
 
     private boolean isAccessibilityEnabled() {
         String enabled = Settings.Secure.getString(
                 getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         if (enabled == null) return false;
-        return enabled.toLowerCase().contains(getPackageName().toLowerCase())
-                && enabled.toLowerCase().contains("raulaccessibilityservice");
+        String lower = enabled.toLowerCase();
+        return lower.contains(getPackageName().toLowerCase())
+                && lower.contains("raulaccessibilityservice");
     }
 
     private boolean isNotificationAccessEnabled() {
@@ -242,9 +293,9 @@ public class MainActivity extends Activity {
     }
 
     private void addSection(String label) {
-        TextView text = text(label, 19, Color.rgb(78, 219, 255));
-        text.setPadding(0, dp(18), 0, dp(6));
-        content.addView(text);
+        TextView view = text(label, 19, Color.rgb(78, 219, 255));
+        view.setPadding(0, dp(18), 0, dp(6));
+        content.addView(view);
     }
 
     private void addButton(String label, Runnable action) {
