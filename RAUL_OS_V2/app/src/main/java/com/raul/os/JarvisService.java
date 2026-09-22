@@ -189,7 +189,8 @@ public class JarvisService extends Service implements RecognitionListener, TextT
             return;
         }
 
-        String normalized = normalizeNaturalCommand(command);
+        final String spokenCommand = command;
+        String normalized = normalizeNaturalCommand(spokenCommand);
         stopListening();
 
         if (normalized.equalsIgnoreCase("stop listening")
@@ -201,7 +202,7 @@ public class JarvisService extends Service implements RecognitionListener, TextT
 
         CommandRouter.executeAsync(this, normalized, result -> {
             if (result != null && result.startsWith("Unknown command.")) {
-                AssistantBrain.ask(this, command, this::speak);
+                AssistantBrain.ask(this, spokenCommand, this::speak);
             } else {
                 speak(result);
             }
