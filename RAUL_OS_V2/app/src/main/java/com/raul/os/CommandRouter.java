@@ -7,11 +7,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.BatteryManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.view.KeyEvent;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.function.Consumer;
 
@@ -89,6 +93,38 @@ public final class CommandRouter {
             String key = raw.substring(8).trim();
             String value = LocalMemory.recall(context, key);
             callback.accept(value == null ? "I don't have a local memory for " + key + "." : value);
+            return;
+        }
+
+        if (lower.equals("time")
+                || lower.equals("tell me time")
+                || lower.equals("tell me the time")
+                || lower.equals("what time is it")
+                || lower.equals("what's the time")
+                || lower.equals("time kya hai")
+                || lower.equals("kitne baje hain")
+                || lower.equals("कितने बजे हैं")) {
+            String now = LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH));
+            callback.accept("It's " + now + ".");
+            return;
+        }
+
+        if (lower.equals("date")
+                || lower.equals("what is the date")
+                || lower.equals("what's the date")
+                || lower.equals("today's date")
+                || lower.equals("aaj ki date")) {
+            String date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH));
+            callback.accept("Today is " + date + ".");
+            return;
+        }
+
+        if (lower.equals("battery")
+                || lower.equals("battery level")
+                || lower.equals("battery kitni hai")) {
+            BatteryManager battery = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
+            int level = battery.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+            callback.accept(level >= 0 ? "Battery is at " + level + " percent." : "I couldn't read the battery level.");
             return;
         }
 
@@ -216,8 +252,25 @@ public final class CommandRouter {
             return;
         }
 
+        if (lower.startsWith("open truecaller and call ")) {
+            callback.accept(ContactHelper.dialContact(
+                    context, raw.substring("open truecaller and call ".length()).trim()));
+            return;
+        }
+
+        if (lower.startsWith("truecaller call ")) {
+            callback.accept(ContactHelper.dialContact(
+                    context, raw.substring("truecaller call ".length()).trim()));
+            return;
+        }
+
         if (lower.startsWith("call ")) {
-            callback.accept(ContactHelper.dialContact(context, raw.substring(5).trim()));
+            String contact = raw.substring(5).trim();
+            String suffix = " using truecaller";
+            if (contact.toLowerCase(Locale.ROOT).endsWith(suffix)) {
+                contact = contact.substring(0, contact.length() - suffix.length()).trim();
+            }
+            callback.accept(ContactHelper.dialContact(context, contact));
             return;
         }
 
