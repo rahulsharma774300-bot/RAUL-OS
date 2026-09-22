@@ -87,6 +87,24 @@ jobs:
           set -e
           godot --headless --path pink-metro-rush-chat --editor --quit
 
+      - name: Runtime smoke test
+        run: |
+          set -e
+          cd pink-metro-rush-chat
+          set +e
+          timeout 10s godot --headless --path . > runtime-smoke.log 2>&1
+          CODE=$?
+          set -e
+          cat runtime-smoke.log
+          if [ "$CODE" -ne 0 ] && [ "$CODE" -ne 124 ]; then
+            echo "Godot exited unexpectedly with code $CODE"
+            exit "$CODE"
+          fi
+          if grep -Eqi "SCRIPT ERROR|Parse Error|Invalid (call|access)|Attempt to call|not found in base|Cannot call method|Cannot get return value" runtime-smoke.log; then
+            echo "Runtime smoke test found a script/runtime failure"
+            exit 1
+          fi
+
       - name: Export Android APK
         run: |
           set -e
@@ -94,6 +112,13 @@ jobs:
           godot --headless --verbose --path pink-metro-rush-chat --export-debug "Android Debug" "$(pwd)/pink-metro-rush-chat/build/Pink-Metro-Rush.apk"
           test -s pink-metro-rush-chat/build/Pink-Metro-Rush.apk
           ls -lh pink-metro-rush-chat/build/Pink-Metro-Rush.apk
+          APKSIGNER="$(find /opt/android-sdk /usr/local/lib/android/sdk -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$APKSIGNER" ]; then "$APKSIGNER" verify --verbose pink-metro-rush-chat/build/Pink-Metro-Rush.apk; fi
+          AAPT="$(find /opt/android-sdk /usr/local/lib/android/sdk -type f -name aapt 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$AAPT" ]; then
+            "$AAPT" dump badging pink-metro-rush-chat/build/Pink-Metro-Rush.apk | tee pink-metro-rush-chat/build/apk-badging.txt
+            grep -q "launchable-activity" pink-metro-rush-chat/build/apk-badging.txt
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
