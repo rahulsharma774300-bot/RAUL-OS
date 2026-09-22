@@ -1,0 +1,83 @@
+name: Rose Rail Android
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'codex/rose-rail-rebuild']
+    paths: ['rose-rail/**', '.github/workflows/rose-rail.yml']
+  pull_request:
+    paths: ['rose-rail/**', '.github/workflows/rose-rail.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: barichello/godot-ci:4.5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install original art pipeline and Android platform
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq blender python3 fontconfig xvfb libgl1-mesa-dri
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager 'platform-tools' 'build-tools;35.0.0' 'platforms;android-35'
+      - name: Build original meshes, skeletal animation and audio
+        run: |
+          blender --background --python rose-rail/tools/create_art.py
+          python3 rose-rail/generate_audio.py
+      - name: Import and run gameplay regression
+        shell: bash
+        run: |
+          set -eo pipefail
+          mkdir -p rose-rail/build
+          godot --headless --path rose-rail --editor --quit 2>&1 | tee rose-rail/build/import.log
+          timeout 180 godot --headless --path rose-rail -- --smoke 2>&1 | tee rose-rail/build/smoke.log
+          grep -q ROSE_RAIL_SMOKE_OK rose-rail/build/smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|Assertion failed' rose-rail/build/*.log
+      - name: Render gameplay screenshot
+        run: |
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a godot --path rose-rail -- --capture
+          mv rose-rail/build-preview.png rose-rail/build/gameplay.png
+      - name: Export and verify signed APK
+        run: |
+          godot --headless --path rose-rail --export-debug 'Android Debug' "$(pwd)/rose-rail/build/Rose-Rail.apk"
+          test -s rose-rail/build/Rose-Rail.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose rose-rail/build/Rose-Rail.apk > rose-rail/build/signature.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging rose-rail/build/Rose-Rail.apk > rose-rail/build/apk-info.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rose-rail-apk
+          path: rose-rail/build/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rose-rail-project
+          path: |
+            rose-rail/**
+            !rose-rail/.godot/**
+            !rose-rail/build/**
+  android-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: rose-rail-apk
+          path: apk
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install, launch, swipe, pause and inspect Android runtime
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: python3 rose-rail/tests/android_smoke.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rose-rail-android-test
+          path: android-evidence/
