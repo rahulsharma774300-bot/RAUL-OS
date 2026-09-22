@@ -499,6 +499,29 @@ func _recolor_runner(n: Node) -> void:
 	for child in n.get_children():
 		_recolor_runner(child)
 
+func _fallback_runner() -> Node3D:
+	var root := Node3D.new()
+	root.name = "FallbackRunner"
+	var torso := _capsule(0.31, 0.92, mat_pink_dark)
+	torso.position = Vector3(0.0, 1.02, 0.0)
+	root.add_child(torso)
+	var hips := _box(Vector3(0.34, 0.22, 0.24), mat_purple)
+	hips.position = Vector3(0.0, 0.68, 0.0)
+	root.add_child(hips)
+	for side in [-1.0, 1.0]:
+		var leg := _capsule(0.095, 0.70, mat_pink)
+		leg.position = Vector3(side * 0.17, 0.35, 0.0)
+		root.add_child(leg)
+		var foot := _capsule(0.145, 0.42, mat_pink)
+		foot.rotation_degrees.x = 90.0
+		foot.position = Vector3(side * 0.17, 0.08, -0.16)
+		root.add_child(foot)
+		var arm := _capsule(0.085, 0.70, mat_pink)
+		arm.position = Vector3(side * 0.39, 1.02, 0.0)
+		arm.rotation_degrees.z = side * 8.0
+		root.add_child(arm)
+	return root
+
 func _add_panther_head() -> void:
 	var attach_parent: Node3D = player
 	var skeleton: Skeleton3D = null
