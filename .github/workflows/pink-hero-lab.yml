@@ -1,0 +1,76 @@
+name: Build Pink Dash Hero Lab
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pink-hero-lab/**'
+      - '.github/workflows/pink-hero-lab.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.5
+    env:
+      HOME: /root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Android build dependencies
+        run: |
+          set -e
+          apt-get update -qq
+          apt-get install -y -qq fontconfig
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35"
+
+      - name: Import Godot project
+        run: |
+          set -e
+          godot --headless --path pink-hero-lab --editor --quit
+
+      - name: Runtime smoke test
+        run: |
+          set -e
+          cd pink-hero-lab
+          set +e
+          timeout 10s godot --headless --path . > runtime-smoke.log 2>&1
+          CODE=$?
+          set -e
+          cat runtime-smoke.log
+          if [ "$CODE" -ne 0 ] && [ "$CODE" -ne 124 ]; then
+            exit "$CODE"
+          fi
+          if grep -Eqi "SCRIPT ERROR|Parse Error|Invalid (call|access)|Attempt to call|not found in base|Cannot call method|Cannot get return value" runtime-smoke.log; then
+            echo "Runtime smoke test found a failure"
+            exit 1
+          fi
+
+      - name: Export Android APK
+        run: |
+          set -e
+          mkdir -p pink-hero-lab/build
+          godot --headless --verbose --path pink-hero-lab --export-debug "Android Debug" "$(pwd)/pink-hero-lab/build/Pink-Dash-Hero-Lab.apk"
+          test -s pink-hero-lab/build/Pink-Dash-Hero-Lab.apk
+
+          APKSIGNER="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$APKSIGNER" ]; then "$APKSIGNER" verify --verbose pink-hero-lab/build/Pink-Dash-Hero-Lab.apk; fi
+
+          AAPT="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name aapt 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$AAPT" ]; then
+            "$AAPT" dump badging pink-hero-lab/build/Pink-Dash-Hero-Lab.apk | tee pink-hero-lab/build/apk-badging.txt
+            grep -q "application-label:'Pink Dash Hero Lab'" pink-hero-lab/build/apk-badging.txt
+            grep -q "launchable-activity" pink-hero-lab/build/apk-badging.txt
+          fi
+          ls -lh pink-hero-lab/build/Pink-Dash-Hero-Lab.apk
+
+      - name: Upload Hero Lab APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pink-dash-hero-lab-apk
+          path: pink-hero-lab/build/Pink-Dash-Hero-Lab.apk
+          if-no-files-found: error
