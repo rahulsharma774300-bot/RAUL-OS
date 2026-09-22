@@ -166,7 +166,7 @@ func _update_game(delta: float) -> void:
 	speed = min(23.5, 10.0 + distance * 0.006)
 	score = int(distance * 13.0) + coin_count * 45
 
-	var target := LANES[lane]
+	var target: float = float(LANES[lane])
 	target_x = target
 	player.position.x = lerpf(player.position.x, target_x, min(1.0, delta * 13.0))
 
@@ -815,9 +815,9 @@ func _move_coins(delta: float) -> void:
 			node.position.x = lerpf(node.position.x, player.position.x, min(1.0, delta * 6.5))
 			node.position.y = lerpf(node.position.y, jump_y + 1.0, min(1.0, delta * 5.0))
 
-		var near_lane := abs(node.position.x - player.position.x) < (1.6 if magnet_time > 0.0 else 0.58)
-		var near_z := abs(node.position.z - PLAYER_Z) < (2.2 if magnet_time > 0.0 else 0.72)
-		var near_y := abs(node.position.y - (jump_y + 0.95)) < 1.25
+		var near_lane: bool = abs(node.position.x - player.position.x) < (1.6 if magnet_time > 0.0 else 0.58)
+		var near_z: bool = abs(node.position.z - PLAYER_Z) < (2.2 if magnet_time > 0.0 else 0.72)
+		var near_y: bool = abs(node.position.y - (jump_y + 0.95)) < 1.25
 		if near_lane and near_z and near_y:
 			coin_count += 1
 			_play_sfx("coin.wav", rng.randf_range(1.0, 1.16))
@@ -936,7 +936,7 @@ func _update_camera(delta: float) -> void:
 	camera.position.x = lerpf(camera.position.x, desired_x, min(1.0, delta * 4.2))
 	camera.position.y = lerpf(camera.position.y, desired_y, min(1.0, delta * 4.0))
 	camera.position.z = lerpf(camera.position.z, desired_z, min(1.0, delta * 4.0))
-	var target_fov := 62.0 + clamp((speed - 10.0) * 0.78, 0.0, 10.0)
+	var target_fov: float = 62.0 + clamp((speed - 10.0) * 0.78, 0.0, 10.0)
 	camera.fov = lerpf(camera.fov, target_fov, min(1.0, delta * 2.8))
 
 	var sx := 0.0
