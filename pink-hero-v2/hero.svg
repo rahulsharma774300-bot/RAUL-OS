@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1500" viewBox="0 0 900 1500">
+<defs>
+  <linearGradient id="fur" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ff7fbc"/><stop offset=".55" stop-color="#f35c9e"/><stop offset="1" stop-color="#d93e82"/>
+  </linearGradient>
+  <linearGradient id="shirt" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ff8fc2"/><stop offset="1" stop-color="#e85d96"/>
+  </linearGradient>
+  <linearGradient id="denim" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#6998c7"/><stop offset="1" stop-color="#426c98"/>
+  </linearGradient>
+  <linearGradient id="lens" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#263146"/><stop offset=".55" stop-color="#11131d"/><stop offset="1" stop-color="#05070c"/>
+  </linearGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ffe071"/><stop offset=".45" stop-color="#d79a16"/><stop offset="1" stop-color="#8b5b08"/>
+  </linearGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#9f4f70" flood-opacity=".28"/></filter>
+</defs>
+
+<!-- ground shadow -->
+<ellipse cx="458" cy="1424" rx="270" ry="34" fill="#a85e7a" opacity=".18"/>
+
+<!-- tail behind body -->
+<path d="M572 993 C700 1065 752 1186 719 1298 C691 1393 607 1410 552 1342 C527 1312 540 1281 564 1295 C590 1311 613 1346 641 1322 C688 1280 672 1191 626 1133 C588 1084 538 1067 507 1037"
+ fill="none" stroke="#26141e" stroke-width="58" stroke-linecap="round"/>
+<path d="M572 993 C700 1065 752 1186 719 1298 C691 1393 607 1410 552 1342 C527 1312 540 1281 564 1295 C590 1311 613 1346 641 1322 C688 1280 672 1191 626 1133 C588 1084 538 1067 507 1037"
+ fill="none" stroke="url(#fur)" stroke-width="44" stroke-linecap="round"/>
+
+<!-- legs -->
+<path d="M378 1060 C382 1130 378 1222 371 1338 C369 1384 392 1411 429 1410 C459 1409 470 1388 463 1350 C451 1255 449 1159 454 1075 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="13"/>
+<path d="M500 1071 C505 1162 504 1252 505 1347 C506 1386 531 1410 568 1407 C602 1404 613 1375 600 1338 C570 1248 566 1151 568 1063 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="13"/>
+
+<!-- feet -->
+<path d="M351 1334 C316 1357 298 1398 327 1426 C349 1447 429 1448 468 1432 C489 1423 490 1395 473 1379 C451 1359 408 1337 351 1334 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="14"/>
+<path d="M493 1352 C477 1382 487 1426 522 1438 C556 1450 640 1448 670 1428 C695 1412 685 1380 660 1366 C621 1345 548 1335 493 1352 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="14"/>
+<path d="M346 1370 L346 1428 M385 1360 L389 1437 M427 1366 L430 1432" stroke="#b52d6b" stroke-width="7" stroke-linecap="round"/>
+<path d="M530 1366 L528 1436 M575 1360 L575 1440 M620 1369 L619 1432" stroke="#b52d6b" stroke-width="7" stroke-linecap="round"/>
+
+<!-- shorts -->
+<path d="M343 935 C370 922 458 918 498 930 L567 914 C590 942 590 1009 574 1075 C543 1087 510 1082 483 1073 L452 1013 L435 1072 C402 1086 365 1082 337 1067 C332 1005 330 963 343 935 Z"
+ fill="url(#denim)" stroke="#26141e" stroke-width="13"/>
+<path d="M452 937 L452 1016" stroke="#2b4e74" stroke-width="8"/>
+<path d="M506 950 Q544 940 565 959 L556 1004 Q531 1014 506 1000 Z" fill="none" stroke="#2b4e74" stroke-width="7"/>
+<path d="M349 1036 Q391 1051 431 1039 M489 1042 Q529 1054 566 1039" fill="none" stroke="#d8e1ea" stroke-width="7" opacity=".7"/>
+
+<!-- torso shirt -->
+<path d="M318 602 C361 570 485 566 532 604 C561 631 586 703 583 815 C581 876 558 933 538 966 C498 985 407 985 355 965 C330 923 316 867 313 806 C308 710 291 642 318 602 Z"
+ fill="url(#shirt)" stroke="#26141e" stroke-width="14" filter="url(#shadow)"/>
+<!-- shirt folds -->
+<path d="M356 776 Q389 751 421 775 M475 770 Q511 752 548 779 M368 895 Q434 916 521 887 M384 938 Q433 956 502 935"
+ fill="none" stroke="#c84f84" stroke-width="8" stroke-linecap="round" opacity=".75"/>
+<!-- sleeves -->
+<path d="M313 611 C274 613 245 641 235 681 C249 701 280 715 312 704 L337 632 Z" fill="url(#shirt)" stroke="#26141e" stroke-width="13"/>
+<path d="M536 610 C573 611 606 638 616 677 C603 699 575 713 544 705 L519 634 Z" fill="url(#shirt)" stroke="#26141e" stroke-width="13"/>
+
+<!-- right arm down -->
+<path d="M575 696 C590 758 592 822 574 877 C563 911 539 934 519 917 C500 900 513 875 526 845 C545 800 542 754 531 706 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="13"/>
+<!-- right hand -->
+<path d="M510 902 C518 882 548 876 568 889 C586 901 585 927 566 941 C542 958 506 936 510 902 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="12"/>
+
+<!-- watch -->
+<ellipse cx="541" cy="888" rx="31" ry="24" fill="url(#gold)" stroke="#26141e" stroke-width="8"/>
+<ellipse cx="541" cy="888" rx="18" ry="14" fill="#6f3c12" stroke="#f5c14c" stroke-width="5"/>
+<path d="M541 879 L541 888 L550 894" stroke="#f9d570" stroke-width="4" stroke-linecap="round"/>
+
+<!-- left arm peace pose -->
+<path d="M260 696 C230 744 198 764 169 738 C145 716 156 683 186 646 C207 620 222 587 226 553 C229 523 250 503 274 513 C297 523 299 550 289 585 C281 614 271 657 260 696 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="13"/>
+<!-- palm -->
+<path d="M188 648 C145 634 118 604 124 572 C130 541 161 530 190 544 C220 558 233 593 222 621 C216 638 205 648 188 648 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="12"/>
+<!-- peace fingers -->
+<path d="M145 570 C112 529 78 474 90 443 C102 413 132 416 148 444 C163 471 170 517 174 549" fill="url(#fur)" stroke="#26141e" stroke-width="12" stroke-linecap="round"/>
+<path d="M181 551 C172 498 166 432 190 411 C213 391 239 407 241 438 C244 474 221 524 207 559" fill="url(#fur)" stroke="#26141e" stroke-width="12" stroke-linecap="round"/>
+<!-- curled fingers -->
+<path d="M139 582 C120 583 112 604 126 617 C143 632 164 619 165 602 C166 588 155 581 139 582 Z" fill="#f46fa9" stroke="#26141e" stroke-width="9"/>
+<path d="M166 603 C148 603 143 624 158 636 C175 649 197 638 198 620 C198 608 184 603 166 603 Z" fill="#f46fa9" stroke="#26141e" stroke-width="9"/>
+
+<!-- neck -->
+<path d="M406 590 C405 548 414 500 425 471 L487 474 C495 511 500 551 499 592 C475 608 432 608 406 590 Z"
+ fill="#f7e7d6" stroke="#26141e" stroke-width="12"/>
+
+<!-- head base -->
+<path d="M350 294 C372 244 419 212 481 216 C544 220 594 258 611 315 C626 366 611 431 569 469 C525 509 447 516 389 486 C340 461 316 413 320 361 C322 334 333 312 350 294 Z"
+ fill="url(#fur)" stroke="#26141e" stroke-width="14"/>
+<!-- right cheek/head bulge -->
+<path d="M548 320 C611 321 654 349 649 388 C644 430 594 453 543 432" fill="url(#fur)" stroke="#26141e" stroke-width="12"/>
+<!-- ears -->
+<ellipse cx="347" cy="309" rx="54" ry="66" fill="url(#fur)" stroke="#26141e" stroke-width="13"/>
+<ellipse cx="347" cy="309" rx="30" ry="40" fill="#f7e7d6" stroke="#c2487d" stroke-width="7"/>
+<ellipse cx="618" cy="320" rx="53" ry="63" fill="url(#fur)" stroke="#26141e" stroke-width="13"/>
+<ellipse cx="618" cy="320" rx="29" ry="39" fill="#f7e7d6" stroke="#c2487d" stroke-width="7"/>
+
+<!-- muzzle -->
+<ellipse cx="420" cy="403" rx="75" ry="60" fill="#f7e7d6" stroke="#26141e" stroke-width="11"/>
+<ellipse cx="495" cy="405" rx="76" ry="60" fill="#f7e7d6" stroke="#26141e" stroke-width="11"/>
+<ellipse cx="457" cy="461" rx="67" ry="47" fill="#f7e7d6" stroke="#26141e" stroke-width="10"/>
+<!-- nose -->
+<path d="M418 377 L455 359 L498 376 L462 405 L436 399 Z" fill="#c92763" stroke="#26141e" stroke-width="10"/>
+<path d="M433 378 Q455 362 481 378" fill="none" stroke="#f06f9f" stroke-width="5"/>
+
+<!-- mouth -->
+<path d="M458 403 Q458 432 437 441 M458 403 Q459 431 481 441" fill="none" stroke="#26141e" stroke-width="8" stroke-linecap="round"/>
+<!-- whiskers -->
+<path d="M392 405 C325 392 278 389 229 395 M392 423 C317 424 270 435 222 453 M520 405 C587 395 645 396 704 411 M520 425 C594 430 649 449 704 477"
+ fill="none" stroke="#26141e" stroke-width="5" stroke-linecap="round"/>
+<path d="M390 438 C329 451 285 475 244 503 M520 440 C581 453 628 478 670 510" fill="none" stroke="#26141e" stroke-width="5" stroke-linecap="round"/>
+
+<!-- brows -->
+<path d="M382 293 Q415 268 444 283" fill="none" stroke="#26141e" stroke-width="17" stroke-linecap="round"/>
+<path d="M505 284 Q538 266 565 291" fill="none" stroke="#26141e" stroke-width="17" stroke-linecap="round"/>
+
+<!-- sunglasses -->
+<g>
+<path d="M345 309 Q388 296 442 309 L439 364 Q409 385 368 370 Q347 356 345 309 Z" fill="url(#lens)" stroke="#17131a" stroke-width="14"/>
+<path d="M470 308 Q525 297 579 312 L574 369 Q535 389 494 372 Q474 357 470 308 Z" fill="url(#lens)" stroke="#17131a" stroke-width="14"/>
+<rect x="439" y="326" width="35" height="14" rx="7" fill="#17131a"/>
+<path d="M361 325 L421 306 L390 340 Z" fill="#7187a0" opacity=".78"/>
+<path d="M487 325 L550 307 L515 340 Z" fill="#7187a0" opacity=".78"/>
+<path d="M343 322 L309 312 M580 325 L615 314" stroke="#17131a" stroke-width="13" stroke-linecap="round"/>
+</g>
+
+<!-- gold chain -->
+<path d="M389 582 C402 637 512 642 535 585" fill="none" stroke="#26141e" stroke-width="19" stroke-linecap="round"/>
+<path d="M389 582 C402 637 512 642 535 585" fill="none" stroke="url(#gold)" stroke-width="12" stroke-linecap="round" stroke-dasharray="14 6"/>
+<rect x="438" y="624" width="47" height="60" rx="10" fill="url(#gold)" stroke="#26141e" stroke-width="8"/>
+<path d="M461 644 C451 631 437 645 444 657 C450 666 459 670 461 676 C463 669 472 667 479 657 C486 645 472 632 461 644 Z" fill="#7b4d0c"/>
+
+<!-- shirt collar -->
+<path d="M388 597 Q458 631 536 595" fill="none" stroke="#26141e" stroke-width="12"/>
+
+<!-- highlights -->
+<path d="M372 254 Q415 228 459 233" fill="none" stroke="#ffacd1" stroke-width="10" stroke-linecap="round" opacity=".65"/>
+<path d="M343 746 Q351 679 384 632" fill="none" stroke="#ffc1da" stroke-width="8" stroke-linecap="round" opacity=".55"/>
+</svg>
