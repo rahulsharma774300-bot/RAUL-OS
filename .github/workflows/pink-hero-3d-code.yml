@@ -1,0 +1,77 @@
+name: Build Pink Hero 3D Viewer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pink-hero-3d-code/**'
+      - '.github/workflows/pink-hero-3d-code.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.5
+    env:
+      HOME: /root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Android SDK
+        run: |
+          set -e
+          apt-get update -qq
+          apt-get install -y -qq fontconfig
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35"
+
+      - name: Import Godot project
+        run: |
+          set -e
+          godot --headless --path pink-hero-3d-code --editor --quit
+
+      - name: Runtime smoke test
+        run: |
+          set -e
+          cd pink-hero-3d-code
+          set +e
+          timeout 10s godot --headless --path . > runtime-smoke.log 2>&1
+          CODE=$?
+          set -e
+          cat runtime-smoke.log
+          if [ "$CODE" -ne 0 ] && [ "$CODE" -ne 124 ]; then exit "$CODE"; fi
+          if grep -Eqi "SCRIPT ERROR|Parse Error|Invalid (call|access)|Attempt to call|not found in base|Cannot call method|Cannot get return value" runtime-smoke.log; then
+            echo "Runtime smoke test failed"
+            exit 1
+          fi
+
+      - name: Export Android APK
+        run: |
+          set -e
+          mkdir -p pink-hero-3d-code/build
+          godot --headless --verbose --path pink-hero-3d-code --export-debug "Android Debug" "$(pwd)/pink-hero-3d-code/build/Pink-Hero-3D-Viewer.apk"
+          test -s pink-hero-3d-code/build/Pink-Hero-3D-Viewer.apk
+
+          APKSIGNER="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose pink-hero-3d-code/build/Pink-Hero-3D-Viewer.apk
+          fi
+
+          AAPT="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name aapt 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$AAPT" ]; then
+            "$AAPT" dump badging pink-hero-3d-code/build/Pink-Hero-3D-Viewer.apk | tee pink-hero-3d-code/build/apk-badging.txt
+            grep -q "application-label:'Pink Hero 3D Viewer'" pink-hero-3d-code/build/apk-badging.txt
+            grep -q "launchable-activity" pink-hero-3d-code/build/apk-badging.txt
+          fi
+
+          ls -lh pink-hero-3d-code/build/Pink-Hero-3D-Viewer.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pink-hero-3d-viewer-apk
+          path: pink-hero-3d-code/build/Pink-Hero-3D-Viewer.apk
+          if-no-files-found: error
