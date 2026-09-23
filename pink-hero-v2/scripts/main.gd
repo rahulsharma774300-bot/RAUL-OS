@@ -27,23 +27,23 @@ func _process(delta: float) -> void:
 			hero.rotation = lerp(hero.rotation, 0.0, min(1.0, delta * 8.0))
 			hero.scale = hero.scale.lerp(Vector2.ONE * (1.02 if zoomed else base_scale), min(1.0, delta * 8.0))
 		"IDLE":
-			var y := sin(t * 2.4) * 9.0
-			var s := (1.02 if zoomed else base_scale) + sin(t * 2.4) * 0.004
+			var y: float = sin(t * 2.4) * 9.0
+			var s: float = (1.02 if zoomed else base_scale) + sin(t * 2.4) * 0.004
 			hero.position = hero.position.lerp(base_pos + Vector2(0, y), min(1.0, delta * 8.0))
 			hero.rotation = sin(t * 1.3) * 0.008
 			hero.scale = hero.scale.lerp(Vector2.ONE * s, min(1.0, delta * 8.0))
 		"RUN":
-			var phase := t * 9.5
-			var y := abs(sin(phase)) * 18.0
-			var lean := sin(phase * 0.5) * 0.015
-			var s := 1.02 if zoomed else base_scale
+			var phase: float = t * 9.5
+			var y: float = abs(sin(phase)) * 18.0
+			var lean: float = sin(phase * 0.5) * 0.015
+			var s: float = 1.02 if zoomed else base_scale
 			hero.position = base_pos + Vector2(sin(phase) * 6.0, -y)
 			hero.rotation = lean
 			hero.scale = Vector2.ONE * s
 		"JUMP":
-			var cycle := fposmod(t, 1.55) / 1.55
-			var arc := sin(cycle * PI)
-			var s := 1.02 if zoomed else base_scale
+			var cycle: float = fposmod(t, 1.55) / 1.55
+			var arc: float = sin(cycle * PI)
+			var s: float = 1.02 if zoomed else base_scale
 			hero.position = base_pos + Vector2(0, -arc * 240.0)
 			hero.rotation = sin(cycle * PI * 2.0) * 0.018
 			hero.scale = Vector2.ONE * s
