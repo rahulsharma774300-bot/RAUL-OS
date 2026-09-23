@@ -15,8 +15,8 @@ var auto_rotate: bool = false
 func _ready() -> void:
 	_setup_environment()
 	_setup_stage()
-	_setup_camera()
 	_setup_ui()
+	_setup_camera()
 
 func _process(delta: float) -> void:
 	if auto_rotate:
@@ -145,7 +145,9 @@ func _update_camera() -> void:
 	camera.global_position = Vector3(x, 2.45, z)
 	camera.look_at(target, Vector3.UP)
 
-	var deg := fposmod(rad_to_deg(camera_yaw), 360.0)
+	if view_label == null:
+		return
+	var deg: float = fposmod(rad_to_deg(camera_yaw), 360.0)
 	if deg < 22.5 or deg >= 337.5:
 		view_label.text = "FRONT"
 	elif deg < 67.5:
