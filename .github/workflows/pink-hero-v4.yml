@@ -1,0 +1,83 @@
+name: Build Pink Hero V4
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pink-hero-v4/**'
+      - '.github/workflows/pink-hero-v4.yml'
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.5
+    env:
+      HOME: /root
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install model and Android dependencies
+        run: |
+          set -e
+          apt-get update -qq
+          apt-get install -y -qq python3 python3-pip fontconfig
+          python3 -m pip install --break-system-packages --quiet numpy trimesh
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "build-tools;35.0.0" "platforms;android-35"
+
+      - name: Generate custom GLB hero
+        run: |
+          set -e
+          python3 pink-hero-v4/generate_model.py
+          test -s pink-hero-v4/generated/PinkHeroV4.glb
+          ls -lh pink-hero-v4/generated/PinkHeroV4.glb
+
+      - name: Import Godot project
+        run: |
+          set -e
+          godot --headless --path pink-hero-v4 --editor --quit
+
+      - name: Runtime smoke test
+        run: |
+          set -e
+          cd pink-hero-v4
+          set +e
+          timeout 10s godot --headless --path . > runtime-smoke.log 2>&1
+          CODE=$?
+          set -e
+          cat runtime-smoke.log
+          if [ "$CODE" -ne 0 ] && [ "$CODE" -ne 124 ]; then exit "$CODE"; fi
+          if grep -Eqi "SCRIPT ERROR|Parse Error|Invalid (call|access)|Attempt to call|not found in base|Cannot call method|Cannot get return value" runtime-smoke.log; then
+            echo "Runtime smoke test failed"
+            exit 1
+          fi
+
+      - name: Export Android APK
+        run: |
+          set -e
+          mkdir -p pink-hero-v4/build
+          godot --headless --verbose --path pink-hero-v4 --export-debug "Android Debug" "$(pwd)/pink-hero-v4/build/Pink-Hero-V4.apk"
+          test -s pink-hero-v4/build/Pink-Hero-V4.apk
+
+          APKSIGNER="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name apksigner 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$APKSIGNER" ]; then "$APKSIGNER" verify --verbose pink-hero-v4/build/Pink-Hero-V4.apk; fi
+
+          AAPT="$(find /opt/android-sdk /usr/local/lib/android/sdk /usr/lib/android-sdk -type f -name aapt 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$AAPT" ]; then
+            "$AAPT" dump badging pink-hero-v4/build/Pink-Hero-V4.apk | tee pink-hero-v4/build/apk-badging.txt
+            grep -q "application-label:'Pink Hero V4'" pink-hero-v4/build/apk-badging.txt
+            grep -q "launchable-activity" pink-hero-v4/build/apk-badging.txt
+          fi
+
+      - name: Upload V4 APK and GLB
+        uses: actions/upload-artifact@v4
+        with:
+          name: pink-hero-v4-build
+          path: |
+            pink-hero-v4/build/Pink-Hero-V4.apk
+            pink-hero-v4/generated/PinkHeroV4.glb
+          if-no-files-found: error
