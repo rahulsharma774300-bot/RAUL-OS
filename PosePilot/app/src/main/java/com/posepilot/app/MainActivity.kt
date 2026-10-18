@@ -190,41 +190,27 @@ private fun describeScene(labels: List<String>): String {
 @Composable
 private fun CameraPreview(front: Boolean, onLabels: (List<String>) -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
     val labeler = remember { ImageLabeling.getClient(ImageLabelerOptions.Builder().setConfidenceThreshold(0.55f).build()) }
     val busy = remember { AtomicBoolean(false) }
-    AndroidView(
-        modifier = modifier,
-        factory = { ctx ->
-            val previewView = PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
-            val providerFuture = ProcessCameraProvider.getInstance(ctx)
-            providerFuture.addListener({
+    val previewView = remember(context) { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
+
+    LaunchedEffect(front, previewView, lifecycleOwner) {
+        val providerFuture = ProcessCameraProvider.getInstance(context)
+        providerFuture.addListener({
+            try {
                 val provider = providerFuture.get()
                 val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
                 val analysis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
                 analysis.setAnalyzer(executor) { proxy -> analyzeFrame(proxy, labeler, busy, onLabels) }
-                try {
-                    provider.unbindAll()
-                    provider.bindToLifecycle(lifecycleOwner, if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                } catch (_: Exception) { }
-            }, ContextCompat.getMainExecutor(ctx))
-            previewView
-        },
-        update = { view ->
-            val providerFuture = ProcessCameraProvider.getInstance(context)
-            providerFuture.addListener({
-                try {
-                    val provider = providerFuture.get()
-                    val preview = Preview.Builder().build().also { it.surfaceProvider = view.surfaceProvider }
-                    val analysis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
-                    analysis.setAnalyzer(executor) { proxy -> analyzeFrame(proxy, labeler, busy, onLabels) }
-                    provider.unbindAll()
-                    provider.bindToLifecycle(lifecycleOwner, if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-                } catch (_: Exception) { }
-            }, ContextCompat.getMainExecutor(context))
-        }
-    )
+                provider.unbindAll()
+                provider.bindToLifecycle(lifecycleOwner, if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            } catch (_: Exception) { }
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    AndroidView(modifier = modifier, factory = { previewView })
     DisposableEffect(Unit) {
         onDispose {
             executor.shutdown()
