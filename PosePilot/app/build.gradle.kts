@@ -5,7 +5,7 @@ plugins {
 }
 android {
     namespace = "com.posepilot.app"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.posepilot.app"
         minSdk = 26
