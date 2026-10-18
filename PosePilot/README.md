@@ -1,15 +1,20 @@
 # PosePilot Android
 
-Native Android starter app for a location-aware photography pose assistant.
+PosePilot is a native Android camera-based photography pose coach.
 
-## Current build
-- Kotlin + Jetpack Compose dark UI
-- 12 starter poses with category filters and instructions
-- Scene selector for mountains, greenery, city and indoor
-- Android camera and location dependencies are configured for the next integration step
+## Current upgraded build
+- CameraX live camera preview with front/back camera toggle.
+- On-device ML Kit image labeling attempts to classify scene objects/backgrounds.
+- Rule-of-thirds composition grid and a selectable pose-template line overlay.
+- Scene-informed pose recommendations and 12 original pose prompts for travel, nature, water, street, cafés, cinematic and casual photography.
+- Camera permission requested at runtime; scene labeling runs on-device.
+- GitHub Actions builds a debug APK artifact.
 
-## Current limitations
-This first build is a UI prototype. The current scene selector is manual; GPS, live camera preview, image-labeling pipeline, pose overlays, and photo capture are not yet connected in the screen. Do not treat those features as completed.
+## Important limitations
+- The green body lines are selectable pose templates, not a live body skeleton fitted to a detected person.
+- Scene recognition uses general image labels, so it may misclassify complex scenes and should be treated as suggestions.
+- GPS-based location identification, photo capture/save controls, automatic human pose landmark detection, and voice guidance are not implemented yet.
+- Pinterest is used as a source of broad inspiration categories, not scraped or copied image assets. See examples: [mountain pose ideas](https://in.pinterest.com/riya_rrd/mountain-pose/) and [river/travel poses](https://in.pinterest.com/riyachetry216/river/).
 
 ## Build
-The GitHub Actions workflow at .github/workflows/posepilot.yml builds a debug APK and uploads it as an artifact.
+The GitHub Actions workflow at `.github/workflows/posepilot.yml` builds `app-debug.apk` and uploads it as `PosePilot-debug-apk`.
