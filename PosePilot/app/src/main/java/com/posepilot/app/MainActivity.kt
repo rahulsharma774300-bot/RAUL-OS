@@ -3,6 +3,20 @@ package com.posepilot.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.location.Location
+import android.os.Looper
+import android.util.Log
+import java.net.URL
+import java.net.HttpURLConnection
+import org.json.JSONObject
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationResult
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -74,96 +89,164 @@ class MainActivity : ComponentActivity() {
 fun PosePilotApp() {
     val context = LocalContext.current
     var cameraGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted = it }
-    var detectedScene by remember { mutableStateOf("Looking at your surroundings…") }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { cameraGranted = it }
+    var locationGranted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) }
+    val locationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { locationGranted = it }
+    var place by remember { mutableStateOf("Location off") }
+    var detectedScene by remember { mutableStateOf("Scanning background…") }
     var labels by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedPose by remember { mutableStateOf(poses[0]) }
     var showGrid by remember { mutableStateOf(true) }
     var showPoseLines by remember { mutableStateOf(true) }
     var facingFront by remember { mutableStateOf(false) }
-    val sceneKey = sceneKey(detectedScene)
-    val suggestions = poses.filter { pose -> pose.scenes.any { it in sceneKey } }.ifEmpty { poses }
-    LaunchedEffect(Unit) { if (!cameraGranted) permissionLauncher.launch(Manifest.permission.CAMERA) }
-
-    MaterialTheme(colorScheme = darkColorScheme(background = Ink, surface = Panel, primary = Lime, onPrimary = Ink, onBackground = Color.White, onSurface = Color.White, secondary = Muted)) {
-        Surface(Modifier.fillMaxSize(), color = Ink) {
-            Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("POSEPILOT", color = Lime, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                        Text("Pose coach", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(onClick = { facingFront = !facingFront }) { Text("↻ Flip", color = Lime) }
+    var showSuggestions by remember { mutableStateOf(true) }
+    var autoSelect by remember { mutableStateOf(true) }
+    val sceneKeys = sceneKey(detectedScene)
+    val placeKeys = sceneKey(place)
+    val suggestions = poses.sortedByDescending { pose ->
+        pose.scenes.count { it in sceneKeys } * 2 + pose.scenes.count { it in placeKeys }
+    }
+    LaunchedEffect(Unit) { if (!cameraGranted) cameraPermission.launch(Manifest.permission.CAMERA) }
+    LaunchedEffect(locationGranted) {
+        if (locationGranted) {
+            try {
+                val client = LocationServices.getFusedLocationProviderClient(context)
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    client.lastLocation.addOnSuccessListener { loc ->
+                        if (loc != null) {
+                            place = "Finding nearby place…"
+                            Thread {
+                                val result = lookupPlace(loc.latitude, loc.longitude)
+                                android.os.Handler(Looper.getMainLooper()).post { place = result }
+                            }.start()
+                        } else place = "Location unavailable"
+                    }.addOnFailureListener { place = "Location unavailable" }
                 }
-                Spacer(Modifier.height(10.dp))
-                Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF090A08), RoundedCornerShape(24.dp))) {
-                    if (cameraGranted) {
-                        CameraPreview(
-                            front = facingFront,
-                            onLabels = { found ->
-                                if (found.isNotEmpty()) {
-                                    labels = found
-                                    detectedScene = describeScene(found)
-                                    val match = poses.firstOrNull { pose -> pose.scenes.any { key -> found.any { it.contains(key, true) } } }
-                                    if (match != null) selectedPose = match
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        if (showGrid || showPoseLines) {
-                            PoseOverlay(Modifier.fillMaxSize(), showGrid, showPoseLines, selectedPose.guide)
-                        }
-                        Column(Modifier.align(Alignment.TopStart).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Surface(color = Color(0xCC11130F), shape = RoundedCornerShape(12.dp)) {
-                                Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
-                                    Text("SCENE ANALYSIS", color = Lime, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
-                                    Text(detectedScene, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                    if (labels.isNotEmpty()) Text(labels.take(3).joinToString(" · "), color = Muted, fontSize = 10.sp)
-                                }
-                            }
-                        }
-                        Column(Modifier.align(Alignment.BottomCenter).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Guide overlay is a pose template, not a live body-tracking skeleton", color = Color.White, fontSize = 10.sp)
-                            Spacer(Modifier.height(6.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(selected = showGrid, onClick = { showGrid = !showGrid }, label = { Text("Grid") })
-                                FilterChip(selected = showPoseLines, onClick = { showPoseLines = !showPoseLines }, label = { Text("Pose lines") })
-                            }
-                        }
-                    } else {
-                        Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Camera permission needed", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Spacer(Modifier.height(8.dp))
-                            Text("PosePilot uses the camera to classify the background on your device.", color = Muted)
-                            Spacer(Modifier.height(14.dp))
-                            Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) { Text("Enable camera") }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text("SUGGESTED FOR THIS SCENE", color = Muted, fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text(selectedPose.name, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text(selectedPose.instructions, color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
-                Spacer(Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(suggestions) { pose ->
-                        Surface(color = if (pose == selectedPose) Lime else Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.width(158.dp).clickable { selectedPose = pose }) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(pose.category.uppercase(), color = if (pose == selectedPose) Ink else Lime, fontSize = 9.sp, letterSpacing = 1.3.sp)
-                                Spacer(Modifier.height(4.dp))
-                                Text(pose.name, color = if (pose == selectedPose) Ink else Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Spacer(Modifier.height(5.dp))
-                                Text(pose.framing, color = if (pose == selectedPose) Ink else Muted, fontSize = 10.sp)
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                Text("On-device scene labels · no photos uploaded · Pinterest-inspired original pose prompts", color = Muted, fontSize = 9.sp)
-            }
+            } catch (_: Exception) { place = "Location unavailable" }
         }
     }
+    MaterialTheme(colorScheme = darkColorScheme(background = Color.Black, surface = Color(0xFF1A1A1A), primary = Color.White)) {
+        Column(Modifier.fillMaxSize().background(Color.Black)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = { showGrid = !showGrid }) {
+                    Icon(Icons.Default.GridOn, contentDescription = "Toggle grid", tint = if (showGrid) Color.Yellow else Color.White)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("POSEPILOT", fontSize = 12.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(place, fontSize = 10.sp, color = Color.LightGray, maxLines = 1)
+                }
+                IconButton(onClick = {
+                    if (locationGranted) {
+                        place = "Finding nearby place…"
+                        val client = LocationServices.getFusedLocationProviderClient(context)
+                        client.lastLocation.addOnSuccessListener { loc ->
+                            if (loc != null) Thread {
+                                val result = lookupPlace(loc.latitude, loc.longitude)
+                                android.os.Handler(Looper.getMainLooper()).post { place = result }
+                            }.start() else place = "Location unavailable"
+                        }
+                    } else locationPermission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                }) {
+                    Icon(Icons.Default.LocationOn, contentDescription = "Enable or refresh location", tint = if (locationGranted) Color.Yellow else Color.White)
+                }
+            }
+            Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFF101010))) {
+                if (cameraGranted) {
+                    CameraPreview(front = facingFront, onLabels = { found ->
+                        if (found.isNotEmpty()) {
+                            labels = found
+                            detectedScene = describeScene(found)
+                            if (autoSelect) {
+                                val keys = sceneKey(detectedScene) + sceneKey(place)
+                                selectedPose = poses.maxByOrNull { pose -> pose.scenes.count { it in keys } } ?: selectedPose
+                            }
+                        }
+                    }, modifier = Modifier.fillMaxSize())
+                    PoseOverlay(Modifier.fillMaxSize(), showGrid, showPoseLines, selectedPose.guide)
+                    Surface(
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
+                        shape = RoundedCornerShape(30.dp), color = Color.Black.copy(alpha = 0.6f)
+                    ) {
+                        Text(detectedScene, Modifier.padding(horizontal = 14.dp, vertical = 8.dp), fontSize = 11.sp, color = Color.White)
+                    }
+                    if (showPoseLines) Surface(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
+                        color = Color.Black.copy(alpha = 0.7f), shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(selectedPose.name, color = Color.Yellow, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Text(selectedPose.instructions, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp)
+                        }
+                    }
+                } else Button(onClick = { cameraPermission.launch(Manifest.permission.CAMERA) }, modifier = Modifier.align(Alignment.Center)) { Text("Enable camera") }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = { showPoseLines = !showPoseLines }) {
+                    Icon(Icons.Default.AccessibilityNew, contentDescription = "Toggle pose guide", tint = if (showPoseLines) Color.Yellow else Color.White)
+                }
+                Box(
+                    Modifier.size(72.dp).background(Color.White, CircleShape).padding(5.dp)
+                        .background(Color.Black, CircleShape).padding(3.dp)
+                        .background(Color.White, CircleShape).clickable { showSuggestions = !showSuggestions },
+                    contentAlignment = Alignment.Center
+                ) { }
+                IconButton(onClick = { facingFront = !facingFront }) {
+                    Icon(Icons.Default.Cameraswitch, contentDescription = "Flip camera", tint = Color.White)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                Text("POSE", color = Color.Yellow, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Spacer(Modifier.width(24.dp))
+                Text("SUGGESTIONS", color = Color.White, fontSize = 12.sp, modifier = Modifier.clickable { showSuggestions = !showSuggestions })
+            }
+            if (showSuggestions) {
+                LazyRow(Modifier.padding(vertical = 10.dp), contentPadding = PaddingValues(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(suggestions) { pose ->
+                        Surface(
+                            modifier = Modifier.width(155.dp).clickable { selectedPose = pose; autoSelect = false },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selectedPose == pose) Color(0xFF4B4922) else Color(0xFF222222)
+                        ) {
+                            Column(Modifier.padding(10.dp)) {
+                                Text(pose.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(pose.framing, color = Color.LightGray, fontSize = 10.sp, maxLines = 2)
+                            }
+                        }
+                    }
+                }
+            }
+            Text(
+                "Location uses internet lookup · background analyzed on-device · tap shutter to show/hide suggestions",
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                color = Color.Gray, fontSize = 9.sp
+            )
+        }
+    }
+}
+
+private fun lookupPlace(lat: Double, lon: Double): String {
+    return try {
+        val url = URL("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon&zoom=14&addressdetails=1")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.connectTimeout = 7000
+        conn.readTimeout = 7000
+        conn.setRequestProperty("User-Agent", "PosePilot/0.2 (Android location-aware photography)")
+        try {
+            val data = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val address = data.optJSONObject("address")
+            val nearby = listOf("tourism", "natural", "waterway", "road", "suburb", "village", "town", "city", "county", "state")
+                .mapNotNull { key -> address?.optString(key)?.takeIf { it.isNotBlank() } }
+                .take(2).joinToString(", ")
+            nearby.ifBlank { data.optString("name", "Nearby area") }
+        } finally { conn.disconnect() }
+    } catch (_: Exception) { "Offline · scene-only suggestions" }
 }
 
 private fun sceneKey(scene: String): Set<String> = when {
