@@ -3,6 +3,17 @@ package com.posepilot.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.content.ContentValues
+import android.provider.MediaStore
+import android.widget.Toast
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraControl
+import androidx.camera.core.CameraInfo
+import androidx.camera.core.CameraEffect
+import androidx.camera.core.CameraFilter
+import androidx.compose.foundation.border
 import android.location.Location
 import android.os.Looper
 import android.util.Log
@@ -97,7 +108,11 @@ fun PosePilotApp() {
     var labels by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedPose by remember { mutableStateOf(poses[0]) }
     var showGrid by remember { mutableStateOf(true) }
-    var showPoseLines by remember { mutableStateOf(true) }
+    var showPoseLines by remember { mutableStateOf(false) }
+    var cameraMode by remember { mutableStateOf("PHOTO") }
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var captureAction by remember { mutableIntStateOf(0) }
+    var lastCapture by remember { mutableStateOf("") }
     var facingFront by remember { mutableStateOf(false) }
     var showSuggestions by remember { mutableStateOf(true) }
     var autoSelect by remember { mutableStateOf(true) }
@@ -156,7 +171,7 @@ fun PosePilotApp() {
             }
             Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFF101010))) {
                 if (cameraGranted) {
-                    CameraPreview(front = facingFront, onLabels = { found ->
+                    CameraPreview(front = facingFront, zoom = zoom, captureAction = captureAction, onCapture = { message -> lastCapture = message; Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }, onLabels = { found ->
                         if (found.isNotEmpty()) {
                             labels = found
                             detectedScene = describeScene(found)
@@ -167,6 +182,11 @@ fun PosePilotApp() {
                         }
                     }, modifier = Modifier.fillMaxSize())
                     PoseOverlay(Modifier.fillMaxSize(), showGrid, showPoseLines, selectedPose.guide)
+                    Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp).background(Color.Black.copy(alpha = 0.42f), RoundedCornerShape(28.dp)).padding(horizontal = 10.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        listOf(1f, 2f, 3f).forEach { level ->
+                            Text("${level.toInt()}×", color = if (zoom == level) Color.Yellow else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { zoom = level }.padding(5.dp))
+                        }
+                    }
                     Surface(
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = 14.dp),
                         shape = RoundedCornerShape(30.dp), color = Color.Black.copy(alpha = 0.6f)
@@ -174,7 +194,7 @@ fun PosePilotApp() {
                         Text(detectedScene, Modifier.padding(horizontal = 14.dp, vertical = 8.dp), fontSize = 11.sp, color = Color.White)
                     }
                     if (showPoseLines) Surface(
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
+                        modifier = Modifier.align(Alignment.Center).padding(start = 16.dp, end = 16.dp),
                         color = Color.Black.copy(alpha = 0.7f), shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(Modifier.padding(12.dp)) {
@@ -194,17 +214,21 @@ fun PosePilotApp() {
                 Box(
                     Modifier.size(72.dp).background(Color.White, CircleShape).padding(5.dp)
                         .background(Color.Black, CircleShape).padding(3.dp)
-                        .background(Color.White, CircleShape).clickable { showSuggestions = !showSuggestions },
+                        .background(Color.White, CircleShape).clickable { captureAction++ },
                     contentAlignment = Alignment.Center
                 ) { }
                 IconButton(onClick = { facingFront = !facingFront }) {
                     Icon(Icons.Default.Cameraswitch, contentDescription = "Flip camera", tint = Color.White)
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                Text("POSE", color = Color.Yellow, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                Spacer(Modifier.width(24.dp))
-                Text("SUGGESTIONS", color = Color.White, fontSize = 12.sp, modifier = Modifier.clickable { showSuggestions = !showSuggestions })
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                listOf("PHOTO", "PORTRAIT").forEach { mode ->
+                    Text(mode, color = if (cameraMode == mode) Color.Yellow else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { cameraMode = mode; showPoseLines = mode == "PORTRAIT" }.padding(horizontal = 18.dp, vertical = 6.dp))
+                }
+                IconButton(onClick = { showSuggestions = !showSuggestions }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = "Pose suggestions", tint = Color.White)
+                }
             }
             if (showSuggestions) {
                 LazyRow(Modifier.padding(vertical = 10.dp), contentPadding = PaddingValues(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -223,7 +247,7 @@ fun PosePilotApp() {
                 }
             }
             Text(
-                "Location uses internet lookup · background analyzed on-device · tap shutter to show/hide suggestions",
+                if (cameraMode == "PORTRAIT") "Portrait framing guidance · background blur not yet supported" else "Tap shutter to save photo · background analyzed on-device",
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 color = Color.Gray, fontSize = 9.sp
             )
@@ -271,34 +295,54 @@ private fun describeScene(labels: List<String>): String {
 }
 
 @Composable
-private fun CameraPreview(front: Boolean, onLabels: (List<String>) -> Unit, modifier: Modifier = Modifier) {
+private fun CameraPreview(
+    front: Boolean, zoom: Float, captureAction: Int, onCapture: (String) -> Unit,
+    onLabels: (List<String>) -> Unit, modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
     val labeler = remember { ImageLabeling.getClient(ImageLabelerOptions.Builder().setConfidenceThreshold(0.55f).build()) }
     val busy = remember { AtomicBoolean(false) }
     val previewView = remember(context) { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
-
+    val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
+    var camera by remember { mutableStateOf<Camera?>(null) }
     LaunchedEffect(front, previewView, lifecycleOwner) {
-        val providerFuture = ProcessCameraProvider.getInstance(context)
-        providerFuture.addListener({
+        val future = ProcessCameraProvider.getInstance(context)
+        future.addListener({
             try {
-                val provider = providerFuture.get()
+                val provider = future.get()
                 val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
                 val analysis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
                 analysis.setAnalyzer(executor) { proxy -> analyzeFrame(proxy, labeler, busy, onLabels) }
                 provider.unbindAll()
-                provider.bindToLifecycle(lifecycleOwner, if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
-            } catch (_: Exception) { }
+                camera = provider.bindToLifecycle(lifecycleOwner, if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture, analysis)
+            } catch (e: Exception) { onCapture("Camera unavailable: " + (e.message ?: "unknown error")) }
         }, ContextCompat.getMainExecutor(context))
     }
-
+    LaunchedEffect(camera, zoom) {
+        camera?.let { cam ->
+            val max = cam.cameraInfo.zoomState.value?.maxZoomRatio ?: 1f
+            cam.cameraControl.setZoomRatio(zoom.coerceIn(1f, max))
+        }
+    }
+    LaunchedEffect(captureAction) {
+        if (captureAction > 0 && camera != null) {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "PosePilot_" + System.currentTimeMillis() + ".jpg")
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/PosePilot")
+            }
+            val options = ImageCapture.OutputFileOptions.Builder(context.contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values).build()
+            imageCapture.takePicture(options, ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) { onCapture("Saved to Pictures/PosePilot") }
+                override fun onError(exception: ImageCaptureException) { onCapture("Save failed: " + (exception.message ?: "unknown error")) }
+            })
+        }
+    }
     AndroidView(modifier = modifier, factory = { previewView })
     DisposableEffect(Unit) {
-        onDispose {
-            executor.shutdown()
-            labeler.close()
-        }
+        onDispose { executor.shutdown(); labeler.close() }
     }
 }
 
