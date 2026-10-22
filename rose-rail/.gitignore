@@ -1,0 +1,6 @@
+.godot/
+assets/*.glb
+generated/
+build/
+build-preview.png
+*.import
